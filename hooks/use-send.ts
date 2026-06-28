@@ -42,7 +42,7 @@ export function useSendPayment() {
         from: address,
         to: params.to,
         amount: xlmToStroops(params.amountXLM),
-        id: "",
+     
       });
 
       try {

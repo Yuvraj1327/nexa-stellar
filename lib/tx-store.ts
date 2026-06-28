@@ -19,7 +19,7 @@ export const useTxStore = create<TxStore>()(
         const id = generateId();
         const newTx: Transaction = {
           ...tx,
-          id: tx.id || id,
+          id,
           timestamp: Date.now(),
         };
         set((s) => ({ transactions: [newTx, ...s.transactions].slice(0, 50) }));

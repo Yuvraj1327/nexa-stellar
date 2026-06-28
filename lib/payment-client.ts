@@ -145,10 +145,11 @@ export async function submitPayment(
     );
 
     onStatus?.("success");
-    return {
-      hash: result.hash,
-      ledger: result.ledger_attr ?? 0,
-    };
+  // Line 148-151 ke paas ka code badal kar aisa karein:
+return {
+  hash: result.hash,
+  ledger: result.ledger ?? 0, // <-- ledger_attr hata kar sirf ledger likhein
+};
   } catch (err: unknown) {
     onStatus?.("failed");
     // Parse Horizon error

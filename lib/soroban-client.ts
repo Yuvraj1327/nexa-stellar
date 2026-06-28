@@ -1,6 +1,6 @@
 import {
   Contract,
-  SorobanRpc,
+rpc,
   TransactionBuilder,
   Networks,
   BASE_FEE,
@@ -14,11 +14,11 @@ import type { Campaign, CampaignStatus, ContractEvent, EventType } from "@/types
 
 // ─── RPC Client ──────────────────────────────────────────────────────────────
 
-let _rpcServer: SorobanRpc.Server | null = null;
+let _rpcServer: rpc.Server | null = null;
 
-export function getRpcServer(): SorobanRpc.Server {
+export function getRpcServer(): rpc.Server {
   if (!_rpcServer) {
-    _rpcServer = new SorobanRpc.Server(CONTRACT_CONFIG.rpcUrl, {
+    _rpcServer = new rpc.Server(CONTRACT_CONFIG.rpcUrl, {
       allowHttp: CONTRACT_CONFIG.network === "testnet",
     });
   }
@@ -73,10 +73,10 @@ export async function simulateContractCall(
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
-  if (!SorobanRpc.Api.isSimulationSuccess(simResult) || !simResult.result) {
+  if (!rpc.Api.isSimulationSuccess(simResult) || !simResult.result) {
     throw new Error("Simulation failed");
   }
 
@@ -143,7 +143,7 @@ export async function buildCreateCampaignTx(
   description: string,
   goalStroops: bigint,
   durationSeconds: bigint,
-): Promise<{ tx: string; simulationResult: SorobanRpc.Api.SimulateTransactionSuccessResponse }> {
+): Promise<{ tx: string; simulationResult: rpc.Api.SimulateTransactionSuccessResponse }> {
   const server = getRpcServer();
   const contract = getContract();
 
@@ -167,14 +167,14 @@ export async function buildCreateCampaignTx(
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
-  if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
+  if (!rpc.Api.isSimulationSuccess(simResult)) {
     throw new Error("Simulation failed");
   }
 
-  const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
   return { tx: preparedTx.toXDR(), simulationResult: simResult };
 }
 
@@ -182,7 +182,7 @@ export async function buildContributeTx(
   sourceAddress: string,
   campaignId: bigint,
   amountStroops: bigint,
-): Promise<{ tx: string; simulationResult: SorobanRpc.Api.SimulateTransactionSuccessResponse }> {
+): Promise<{ tx: string; simulationResult: rpc.Api.SimulateTransactionSuccessResponse }> {
   const server = getRpcServer();
   const contract = getContract();
 
@@ -204,14 +204,14 @@ export async function buildContributeTx(
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
-  if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
+  if (!rpc.Api.isSimulationSuccess(simResult)) {
     throw new Error("Simulation failed");
   }
 
-  const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
   return { tx: preparedTx.toXDR(), simulationResult: simResult };
 }
 
@@ -239,14 +239,14 @@ export async function buildClaimFundsTx(
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
-  if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
+  if (!rpc.Api.isSimulationSuccess(simResult)) {
     throw new Error("Simulation failed");
   }
 
-  const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
   return { tx: preparedTx.toXDR() };
 }
 
@@ -274,14 +274,14 @@ export async function buildCancelCampaignTx(
     .build();
 
   const simResult = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(simResult)) {
+  if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
-  if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
+  if (!rpc.Api.isSimulationSuccess(simResult)) {
     throw new Error("Simulation failed");
   }
 
-  const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
   return { tx: preparedTx.toXDR() };
 }
 
@@ -310,11 +310,11 @@ export async function submitAndTrack(
     await new Promise((r) => setTimeout(r, 2000));
     const getResult = await server.getTransaction(hash);
 
-    if (getResult.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+    if (getResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
       onStatus?.("success");
       return { hash, ledger: getResult.ledger };
     }
-    if (getResult.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+    if (getResult.status === rpc.Api.GetTransactionStatus.FAILED) {
       const errMsg = "Transaction failed on-chain";
       onStatus?.("failed");
       throw new Error(errMsg);

@@ -15,6 +15,7 @@ const TX_LABELS: Record<TxType, string> = {
   contribute: "Contributed",
   claim_funds: "Claimed Funds",
   cancel_campaign: "Cancelled Campaign",
+  send_payment: "Sent Payment",
 };
 
 const TX_ICONS: Record<TxType, string> = {
@@ -22,6 +23,7 @@ const TX_ICONS: Record<TxType, string> = {
   contribute: "💰",
   claim_funds: "🎉",
   cancel_campaign: "❌",
+  send_payment: "💸",
 };
 
 function StatusBadge({ status }: { status: Transaction["status"] }) {

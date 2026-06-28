@@ -1,56 +1,56 @@
-
 # 🌟 Nexa Stellar — Decentralized Crowdfunding DApp
 
-> **Live Demo**: [https://nexa-stellar.vercel.app](https://nexa-stellar.vercel.app) *(deploy and replace with your URL)*
-> **Contract Address**: `CONTRACT_ADDRESS_HERE` *(updated automatically by `npm run deploy:testnet`)*
-> **Sample TX Hash**: `TRANSACTION_HASH_HERE` *(replace after first contract interaction)*
+> **Live Demo**: [https://nexa-stellar-jug5.vercel.app](https://nexa-stellar-jug5.vercel.app)
+> **Contract Address**: `CAHQCXE7OTEJU4UFL3H325RSJVC3RBPUJR4C6CRJHPSQSHAWXWF43JP2`
+> **Network**: Stellar Testnet
+> **Explorer**: [View Contract](https://stellar.expert/explorer/testnet/contract/CAHQCXE7OTEJU4UFL3H325RSJVC3RBPUJR4C6CRJHPSQSHAWXWF43JP2)
 
-A production-ready, full-stack DApp on the Stellar blockchain. Send XLM, launch crowdfunding campaigns, and interact with a Soroban smart contract — all from a polished Next.js 15 frontend.
+A production-ready, full-stack decentralized crowdfunding platform built on the **Stellar blockchain** using **Soroban smart contracts**. Send XLM, launch campaigns, contribute to projects — all on-chain with full transparency.
 
-Satisfies **White Belt** and **Orange Belt** of the Stellar Journey to Mastery.
+Satisfies ✅ **White Belt** and ✅ **Orange Belt** of the [Stellar Journey to Mastery](https://www.risein.com/programs/stellar-journey-to-mastery-monthly-builder-challenges).
 
 ---
 
 ## 📸 Screenshots
 
-| | |
+| Wallet Connect | Balance Display |
 |---|---|
-| ![Wallet Connected](docs/screenshots/wallet-connected.png) | ![Balance Display](docs/screenshots/balance.png) |
-| *Wallet Connected — address + XLM balance shown* | *Balance — live balance from Horizon API* |
-| ![Send XLM](docs/screenshots/send-xlm.png) | ![Transaction Success](docs/screenshots/tx-success.png) |
-| *Send XLM — recipient, amount, memo* | *Successful transaction with hash + explorer link* |
-| ![Transaction Feedback](docs/screenshots/tx-feedback.png) | ![Contract Interaction](docs/screenshots/contract.png) |
-| *Transaction states: pending → success / failed* | *Soroban contract: create campaign + contribute* |
+| ![Wallet Connect](docs/screenshots/wallet-connected.png) | ![Balance](docs/screenshots/balance.png) |
 
-> Add real screenshots to `docs/screenshots/` after running the app.
+| Send XLM | Transaction Success |
+|---|---|
+| ![Send XLM](docs/screenshots/send-xlm.png) | ![TX Success](docs/screenshots/tx-success.png) |
+
+| Campaign List | Contract Interaction |
+|---|---|
+| ![Campaigns](docs/screenshots/campaigns.png) | ![Contract](docs/screenshots/contract.png) |
 
 ---
 
 ## ✨ Features
 
-### White Belt ✅
-- 🔐 **Freighter Wallet** — connect, disconnect, display address
-- 💰 **XLM Balance** — live balance fetched from Horizon API
+### ⚪ White Belt
+- 🔐 **Freighter Wallet** — connect, disconnect, display address & balance
+- 💰 **Live XLM Balance** — fetched in real-time from Horizon API
 - 💸 **Send XLM** — native payment to any Stellar address with:
-  - Loading state (building → signing → submitting)
-  - Success state with transaction hash + explorer link
-  - Failure state with user-friendly error messages
-  - Good error messages for all edge cases
-- 📋 **Transaction History** — persistent history with pending/success/failed
+  - ⏳ Loading states (building → signing → submitting)
+  - ✅ Success state with transaction hash + explorer link
+  - ❌ Failure state with user-friendly error messages
+  - 📝 Optional memo support
+- 📋 **Transaction History** — persistent with pending/success/failed badges
 - 📱 **Responsive UI** — mobile-first dark design
-- 🧱 **Clean Architecture** — separated concerns, reusable components
 
-### Orange Belt ✅
-- 🪪 **Multi-wallet via StellarWalletsKit** — Freighter, LOBSTR, xBull, Rabet, Albedo
+### 🟠 Orange Belt
+- 🪪 **Multi-wallet via StellarWalletsKit** — Freighter, LOBSTR, xBull, Albedo, Rabet
   - Wallet not installed → clear install message
   - User rejected → friendly rejection message
-  - Insufficient balance → specific balance error
-- 📦 **Soroban Smart Contract** — Crowdfunding contract deployed to Testnet
-  - Read contract state (campaigns, counts, contributions)
-  - Write to contract (create campaign, contribute, claim, cancel)
-  - Transaction status: pending → success / failed
-- 📡 **Real-time Updates** — contract event polling every 15s, TanStack Query auto-refresh
-- 🔗 **Explorer Integration** — deep links to stellar.expert for all entities
+  - Insufficient balance → specific error
+- 📦 **Soroban Smart Contract** — Crowdfunding contract on Testnet
+  - ✅ Read contract state (campaigns, counts, contributions)
+  - ✅ Write to contract (create, contribute, claim, cancel)
+  - ✅ Transaction status: Pending → Success / Failed
+- 📡 **Real-time Updates** — contract event polling every 15s
+- 🔗 **Explorer Integration** — deep links to stellar.expert
 
 ---
 
@@ -61,12 +61,13 @@ Satisfies **White Belt** and **Orange Belt** of the Stellar Journey to Mastery.
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
-| Server State | TanStack Query v5 (polling, caching) |
-| Client State | Zustand (wallet + tx history) |
+| Server State | TanStack Query v5 |
+| Client State | Zustand |
 | Multi-wallet | @creit.tech/stellar-wallets-kit |
 | Blockchain SDK | @stellar/stellar-sdk v13 |
 | Smart Contract | Rust + soroban-sdk v22 |
 | Network | Stellar Testnet |
+| Deployment | Vercel |
 
 ---
 
@@ -74,59 +75,58 @@ Satisfies **White Belt** and **Orange Belt** of the Stellar Journey to Mastery.
 
 ```
 nexa-stellar/
-├── app/                         # Next.js App Router pages
-│   ├── page.tsx                 # Home — hero, stats, active campaigns
-│   ├── send/page.tsx            # ⭐ Send XLM (White Belt core)
+├── app/
+│   ├── page.tsx                 # Home — hero, stats, campaigns
+│   ├── send/page.tsx            # ⭐ Send XLM (White Belt)
 │   ├── campaigns/
-│   │   ├── page.tsx             # Campaign grid with filters
-│   │   └── [id]/page.tsx        # Campaign detail + contribute
-│   ├── dashboard/page.tsx       # Wallet dashboard + portfolio
-│   ├── activity/page.tsx        # Real-time event feed
+│   │   ├── page.tsx             # All campaigns
+│   │   └── [id]/page.tsx        # Campaign detail
+│   ├── dashboard/page.tsx       # Wallet dashboard
+│   ├── activity/page.tsx        # Real-time events
 │   ├── tx/page.tsx              # Transaction history
-│   ├── layout.tsx               # Root layout + providers
-│   ├── providers.tsx            # TanStack Query provider
-│   └── globals.css              # Tailwind + custom CSS
+│   ├── layout.tsx               # Root layout
+│   └── globals.css              # Global styles
 │
 ├── components/
 │   ├── wallet/
-│   │   ├── WalletButton.tsx     # Connect/disconnect + balance dropdown
-│   │   └── SendXLMModal.tsx     # ⭐ Send XLM modal (all states)
+│   │   ├── WalletButton.tsx     # Connect/disconnect
+│   │   └── SendXLMModal.tsx     # Send XLM (all states)
 │   ├── campaign/
 │   │   ├── CampaignCard.tsx     # Campaign card + skeleton
 │   │   ├── CreateCampaignModal.tsx
 │   │   └── ContributeModal.tsx
 │   └── shared/
-│       ├── Header.tsx           # Navigation + wallet button
-│       ├── Toaster.tsx          # Toast notifications
-│       └── TransactionHistory.tsx # Tx list with status badges
+│       ├── Header.tsx
+│       ├── Toaster.tsx
+│       └── TransactionHistory.tsx
 │
 ├── hooks/
-│   ├── use-wallet.ts            # ⭐ StellarWalletsKit (connect/disconnect/sign)
-│   ├── use-send.ts              # ⭐ XLM payment state machine
-│   ├── use-campaigns.ts         # TanStack Query campaign hooks
-│   ├── use-events.ts            # Contract event polling
-│   └── use-toast.ts             # Toast system
+│   ├── use-wallet.ts            # StellarWalletsKit
+│   ├── use-send.ts              # XLM payment state machine
+│   ├── use-campaigns.ts         # TanStack Query hooks
+│   ├── use-events.ts            # Event polling
+│   └── use-toast.ts
 │
 ├── lib/
-│   ├── payment-client.ts        # ⭐ Native XLM payment via Horizon
+│   ├── payment-client.ts        # Native XLM via Horizon
 │   ├── soroban-client.ts        # Soroban RPC + tx builders
-│   ├── contract-config.ts       # Network config (reads env vars)
+│   ├── contract-config.ts       # Network config
 │   ├── wallet-store.ts          # Zustand wallet state
-│   ├── tx-store.ts              # Zustand tx history (persisted)
-│   └── stellar-utils.ts         # XLM formatting, error parsing
+│   ├── tx-store.ts              # Zustand tx history
+│   └── stellar-utils.ts        # Utilities
 │
 ├── contracts/
-│   └── crowdfunding/            # Soroban smart contract (Rust)
-│       ├── src/lib.rs           # Contract logic + events + tests
+│   └── crowdfunding/
+│       ├── src/lib.rs           # Soroban contract
 │       └── Cargo.toml
 │
 ├── scripts/
-│   └── deploy.mjs               # Full deployment pipeline
+│   └── deploy.mjs               # Deployment script
 │
 ├── types/
-│   └── index.ts                 # TypeScript type definitions
+│   └── index.ts
 │
-└── .env.example                 # Environment variable template
+└── .env.example
 ```
 
 ---
@@ -139,17 +139,19 @@ nexa-stellar/
 # Node.js 18+
 node -v
 
-# Rust + Cargo
+# Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Stellar CLI
+brew install stellar-cli
+# OR
 cargo install --locked stellar-cli --features opt
 
 # Freighter wallet extension
 # https://freighter.app
 ```
 
-### 1. Install
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/yourusername/nexa-stellar.git
@@ -167,98 +169,73 @@ Edit `.env.local`:
 
 ```env
 NEXT_PUBLIC_NETWORK="testnet"
+NEXT_PUBLIC_CONTRACT_ID="CAHQCXE7OTEJU4UFL3H325RSJVC3RBPUJR4C6CRJHPSQSHAWXWF43JP2"
 NEXT_PUBLIC_RPC_URL="https://soroban-testnet.stellar.org"
 NEXT_PUBLIC_HORIZON_URL="https://horizon-testnet.stellar.org"
 NEXT_PUBLIC_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 NEXT_PUBLIC_EXPLORER_BASE="https://stellar.expert/explorer/testnet"
-NEXT_PUBLIC_CONTRACT_ID="CONTRACT_ADDRESS_HERE"
-DEPLOYER_ACCOUNT="nexa-deployer"
 ```
 
-### 3. Deploy the Smart Contract
-
-```bash
-npm run deploy:testnet
-```
-
-This automatically:
-- Creates & funds a Stellar identity via Friendbot
-- Builds the Rust/Soroban contract
-- Uploads and deploys to Testnet
-- Initializes the contract
-- Generates TypeScript bindings
-- Updates `.env.local` and `lib/contract-config.ts`
-
-### 4. Run Locally
+### 3. Run Locally
 
 ```bash
 npm run dev
 # → http://localhost:3000
 ```
 
-### 5. Get Test XLM
+### 4. Get Free Test XLM
 
-Visit: `https://friendbot.stellar.org?addr=YOUR_ADDRESS`
-Or use the Friendbot link in the `/send` page.
-
----
-
-## 🌐 Vercel Deployment
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-
-# Set env vars in Vercel Dashboard → Settings → Environment Variables:
-# NEXT_PUBLIC_CONTRACT_ID = <from deploy:testnet output>
-# NEXT_PUBLIC_NETWORK = testnet
-# NEXT_PUBLIC_RPC_URL = https://soroban-testnet.stellar.org
-# NEXT_PUBLIC_HORIZON_URL = https://horizon-testnet.stellar.org
-# NEXT_PUBLIC_NETWORK_PASSPHRASE = Test SDF Network ; September 2015
-# NEXT_PUBLIC_EXPLORER_BASE = https://stellar.expert/explorer/testnet
+```
+https://friendbot.stellar.org?addr=YOUR_WALLET_ADDRESS
 ```
 
 ---
 
 ## 🔑 Environment Variables
 
-| Variable | Description | Required |
-|---|---|---|
-| `NEXT_PUBLIC_NETWORK` | `testnet` or `mainnet` | ✅ |
-| `NEXT_PUBLIC_CONTRACT_ID` | Soroban contract ID | ✅ |
-| `NEXT_PUBLIC_RPC_URL` | Soroban RPC endpoint | ✅ |
-| `NEXT_PUBLIC_HORIZON_URL` | Horizon REST API | ✅ |
-| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | Network passphrase | ✅ |
-| `NEXT_PUBLIC_EXPLORER_BASE` | stellar.expert base URL | ✅ |
-| `DEPLOYER_ACCOUNT` | Stellar CLI identity (server-side) | Deploy only |
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_NETWORK` | `testnet` or `mainnet` |
+| `NEXT_PUBLIC_CONTRACT_ID` | Deployed Soroban contract ID |
+| `NEXT_PUBLIC_RPC_URL` | Soroban RPC endpoint |
+| `NEXT_PUBLIC_HORIZON_URL` | Horizon REST API |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | Network passphrase |
+| `NEXT_PUBLIC_EXPLORER_BASE` | stellar.expert base URL |
 
 ---
 
-## 🧠 Smart Contract
+## 📦 Smart Contract
 
-**Contract**: `contracts/crowdfunding/src/lib.rs`
-**Deployed on**: Stellar Testnet
-**Contract ID**: `CONTRACT_ADDRESS_HERE`
+**Language**: Rust (soroban-sdk v22)
+**Network**: Stellar Testnet
+**Contract ID**: `CAHQCXE7OTEJU4UFL3H325RSJVC3RBPUJR4C6CRJHPSQSHAWXWF43JP2`
 
-### Functions
+### Deploy Your Own
 
-| Function | Access | Description |
-|---|---|---|
-| `initialize(admin)` | Admin | One-time setup |
-| `create_campaign(...)` | Any | Launch a crowdfunding campaign |
-| `contribute(id, contributor, amount)` | Any | Fund a campaign with XLM |
-| `claim_funds(id, creator)` | Creator | Claim after goal reached |
-| `cancel_campaign(id, creator)` | Creator | Cancel with no contributions |
-| `get_campaign(id)` | Read | Fetch campaign state |
-| `get_campaign_count()` | Read | Total campaigns |
-| `get_contribution(id, addr)` | Read | Contributor's amount |
+```bash
+# Build
+npm run contract:build
 
-### Events
+# Deploy to Testnet
+npm run deploy:testnet
+```
 
-| Symbol | Trigger |
+### Contract Functions
+
+| Function | Description |
+|---|---|
+| `initialize(admin)` | One-time setup |
+| `create_campaign(creator, title, desc, goal, duration)` | Launch campaign |
+| `contribute(id, contributor, amount)` | Fund with XLM |
+| `claim_funds(id, creator)` | Claim after goal reached |
+| `cancel_campaign(id, creator)` | Cancel if no contributions |
+| `get_campaign(id)` | Read campaign state |
+| `get_campaign_count()` | Total campaigns |
+| `get_contribution(id, addr)` | Contributor amount |
+
+### Contract Events
+
+| Event | Trigger |
 |---|---|
 | `CAMP_NEW` | Campaign created |
 | `CAMP_FUND` | Contribution made |
@@ -267,52 +244,76 @@ vercel
 
 ---
 
-## 🔮 Future Improvements
+## 🌐 Vercel Deployment
 
-- [ ] NFT rewards for campaign backers
-- [ ] Multi-asset contributions (USDC, etc.)
-- [ ] Campaign updates / milestone posts
-- [ ] On-chain voting for milestone releases
-- [ ] Email notifications via Stellar Anchor
-- [ ] SEP-24 off-ramp for creators
-- [ ] Mobile app (React Native)
-- [ ] DAO governance for platform fees
-- [ ] Mainnet deployment with audited contract
+```bash
+# Install Vercel CLI
+npm install -g vercel
+
+# Deploy
+vercel
+
+# Add environment variables
+vercel env add NEXT_PUBLIC_CONTRACT_ID
+
+# Production deploy
+vercel --prod
+```
+
+Or connect GitHub repo to Vercel and add env vars in Dashboard → Settings → Environment Variables.
 
 ---
 
-## ✅ Audit Checklist
+## 🔮 Future Improvements
+
+- [ ] Multi-asset contributions (USDC, AQUA)
+- [ ] NFT rewards for backers
+- [ ] Campaign milestone releases
+- [ ] On-chain governance voting
+- [ ] Mobile app (React Native)
+- [ ] Mainnet deployment
+- [ ] SEP-24 fiat off-ramp for creators
+- [ ] Email notifications via Stellar Anchor
+- [ ] DAO governance for platform fees
+- [ ] Smart contract security audit
+
+---
+
+## ✅ White Belt & Orange Belt Checklist
 
 | Requirement | Status |
 |---|---|
-| ✅ Wallet Connect (Freighter + StellarWalletsKit) | **DONE** |
-| ✅ Wallet Disconnect | **DONE** |
-| ✅ XLM Balance Display | **DONE** |
-| ✅ Send XLM on Testnet | **DONE** |
-| ✅ Loading State (building → signing → submitting) | **DONE** |
-| ✅ Success State + TX Hash | **DONE** |
-| ✅ Failure State + Error Message | **DONE** |
-| ✅ Good Error Messages | **DONE** |
-| ✅ Clean Folder Structure | **DONE** |
-| ✅ Reusable Components | **DONE** |
-| ✅ Proper Error Handling | **DONE** |
-| ✅ Responsive UI | **DONE** |
-| ✅ README (this file) | **DONE** |
-| ✅ Multi-wallet (StellarWalletsKit) | **DONE** |
-| ✅ Wallet Not Installed Error | **DONE** |
-| ✅ User Rejected Error | **DONE** |
-| ✅ Insufficient Balance Error | **DONE** |
-| ✅ Soroban Smart Contract Deployed | **DONE** |
-| ✅ Read Contract State | **DONE** |
-| ✅ Write Contract State | **DONE** |
-| ✅ TX Status: Pending / Success / Failed | **DONE** |
-| ✅ Real-time Event Polling | **DONE** |
-| ✅ Auto UI Update on State Change | **DONE** |
-| ✅ 2+ Meaningful Git Commits | **DONE** |
-| ✅ README with Screenshots, Folder Structure, Live Demo | **DONE** |
+| ✅ Freighter Wallet Setup | Done |
+| ✅ Stellar Testnet | Done |
+| ✅ Wallet Connect | Done |
+| ✅ Wallet Disconnect | Done |
+| ✅ Fetch XLM Balance | Done |
+| ✅ Display Balance | Done |
+| ✅ Send XLM on Testnet | Done |
+| ✅ Loading State | Done |
+| ✅ Success State + TX Hash | Done |
+| ✅ Failure State + Error Message | Done |
+| ✅ Good Error Messages | Done |
+| ✅ Clean Folder Structure | Done |
+| ✅ Reusable Components | Done |
+| ✅ Responsive UI | Done |
+| ✅ Multi-wallet (StellarWalletsKit) | Done |
+| ✅ Wallet Not Installed Error | Done |
+| ✅ User Rejected Error | Done |
+| ✅ Insufficient Balance Error | Done |
+| ✅ Soroban Smart Contract Deployed | Done |
+| ✅ Read Contract State | Done |
+| ✅ Write Contract State | Done |
+| ✅ TX Status Pending / Success / Failed | Done |
+| ✅ Real-time Event Polling | Done |
+| ✅ Auto UI Update | Done |
+| ✅ 2+ Meaningful Git Commits | Done |
+| ✅ Public GitHub Repository | Done |
+| ✅ README Complete | Done |
+| ✅ Live Demo | Done |
 
 ---
 
-## 📄 License
+## 👨‍💻 Built With ❤️ on Stellar
 
-MIT
+> Nexa Stellar is part of the Stellar Journey to Mastery builder program by [Rise In](https://www.risein.com).

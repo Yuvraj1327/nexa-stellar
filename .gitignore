@@ -8,6 +8,7 @@ node_modules/
 out/
 
 # Environment
+.env.example
 .env
 .env.local
 .env.development.local

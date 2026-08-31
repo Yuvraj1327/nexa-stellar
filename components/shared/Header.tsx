@@ -24,9 +24,11 @@ export function Header() {
     <header className="sticky top-0 z-40 w-full border-b border-white/[0.06] bg-black/60 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-stellar-blue to-stellar-purple flex items-center justify-center">
-            <span className="text-sm font-bold text-white">N</span>
-          </div>
+       <img
+  src="https://i.ibb.co/Xk4HzN9D/Chat-GPT-Image-Aug-31-2026-07-10-17-PM.png"
+  alt="Nexa Stellar"
+  className="w-15 h-14 rounded-xl object-cover"
+/>
           <div className="hidden sm:block">
             <span className="font-bold text-white text-base leading-none">nexa</span>
             <span className="font-light text-white/40 text-base leading-none">.stellar</span>

@@ -164,7 +164,7 @@ function useMutate(txType: TxType) {
       if (!address) throw new Error("Wallet not connected");
       const txXdr = await buildFn();
       const signed = await signTransaction(txXdr);
-      const localId = addTransaction({ id: "", type: txType, status: "pending", from: address, campaignId: options?.campaignId, milestoneId: options?.milestoneId, amount: options?.amount });
+      const localId = addTransaction({ type: txType, status: "pending", from: address, campaignId: options?.campaignId, milestoneId: options?.milestoneId, amount: options?.amount });
       const { hash, ledger } = await submitAndPoll(signed, (s) => {
         updateTransaction(localId, { status: s === "success" ? "success" : s === "failed" ? "failed" : "pending" });
       });

@@ -7,19 +7,29 @@ export type Network = "testnet" | "mainnet";
 // Level 1/2 crowdfunding contract emits: Active | Successful | Failed | Cancelled
 // Level 3/4 milestone contract emits:    Active | Funded | InProgress | Completed | Failed | Cancelled
 //
-// Both sets are included here so that:
-//   - app/campaigns/[id]/page.tsx (Level 1/2) can compare === "Successful" without TS error
-//   - app/milestones/page.tsx (Level 3/4) can compare === "InProgress" etc without TS error
+// Both sets are included so all pages type-check correctly without casts.
 //
 export type CampaignStatus =
   | "Active"
-  | "Successful"    // Level 1/2 crowdfunding contract
-  | "Funded"        // Level 3/4 milestone contract
-  | "InProgress"    // Level 3/4 milestone contract
-  | "Completed"     // Level 3/4 milestone contract
+  | "Successful"   // Level 1/2 crowdfunding contract
+  | "Funded"       // Level 3/4 milestone contract
+  | "InProgress"   // Level 3/4 milestone contract
+  | "Completed"    // Level 3/4 milestone contract
   | "Failed"
   | "Cancelled";
 
+// ─── Campaign ─────────────────────────────────────────────────────────────────
+//
+// Shared by both contracts.
+//
+// Level 1/2 crowdfunding contract does NOT have:
+//   - escrowed       (no escrow mechanism)
+//   - released       (no milestone releases)
+//   - milestoneCount (no milestones)
+//
+// These fields are therefore optional so both contracts satisfy Campaign.
+// When absent they default to 0/0n in parsers and UI transforms.
+//
 export interface Campaign {
   id: bigint;
   creator: string;
@@ -27,20 +37,23 @@ export interface Campaign {
   description: string;
   goal: bigint;
   raised: bigint;
-  escrowed: bigint;
-  released: bigint;
+  escrowed?: bigint;        // L3/4 only — 0n when absent
+  released?: bigint;        // L3/4 only — 0n when absent
   deadline: bigint;
   status: CampaignStatus;
   backerCount: bigint;
-  milestoneCount: number;
+  milestoneCount?: number;  // L3/4 only — 0 when absent
   createdAt: bigint;
 }
 
+// CampaignUI adds computed display fields.
+// All optional Campaign fields are resolved to concrete values here.
 export interface CampaignUI extends Campaign {
   goalXLM: number;
   raisedXLM: number;
-  escrowedXLM: number;
-  releasedXLM: number;
+  escrowedXLM: number;    // 0 for L1/2 campaigns
+  releasedXLM: number;    // 0 for L1/2 campaigns
+  milestoneCount: number; // overrides optional — always 0 for L1/2 campaigns
   progress: number;
   daysLeft: number;
   isExpired: boolean;
@@ -119,11 +132,12 @@ export type EventType =
   | "REFUND"
   | "CAMPDONE"
   | "CANCELD"
-  // Level 1/2 contract events
-  | "CAMP_NEW"
-  | "CAMP_FUND"
-  | "CAMP_CLAM"
-  | "CAMP_CAN";
+  // Level 1/2 crowdfunding contract events
+  | "CAMP_NEW"    // campaign created
+  | "CAMP_FUND"   // contribution received
+  | "CAMP_CLAM"   // creator claimed funds
+  | "CAMP_REF"    // refund issued  ← used in use-events.ts metadata
+  | "CAMP_CAN";   // campaign cancelled
 
 export interface ContractEvent {
   id: string;
@@ -177,6 +191,24 @@ export interface WalletBalance {
   decimals: number;
 }
 
+export interface WalletState {
+  address: string | null;
+  isConnected: boolean;
+  isConnecting: boolean;
+  network: Network;
+  balances: WalletBalance[];
+  kit: unknown | null;
+}
+
+// ─── Campaign Input ───────────────────────────────────────────────────────────
+
+export interface CreateCampaignInput {
+  title: string;
+  description: string;
+  goalXLM: number;
+  durationDays: number;
+}
+
 // ─── Feedback ─────────────────────────────────────────────────────────────────
 
 export type FeedbackType = "bug" | "feature" | "general" | "ux";
@@ -199,15 +231,6 @@ export interface ToastMessage {
   description?: string;
   variant: "default" | "destructive" | "success";
   txHash?: string;
-}
-
-// ─── Campaign Input (used by use-campaigns.ts / CreateCampaignModal) ──────────
-
-export interface CreateCampaignInput {
-  title: string;
-  description: string;
-  goalXLM: number;
-  durationDays: number;
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

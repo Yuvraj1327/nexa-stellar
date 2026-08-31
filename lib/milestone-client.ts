@@ -311,17 +311,17 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
 
   for (const c of campaigns) {
     totalRaised += c.raised;
-    totalEscrowed += c.escrowed;
-    totalReleased += c.released;
+    totalEscrowed += c.escrowed ?? 0n;
+    totalReleased += c.released ?? 0n;
     totalBackers += c.backerCount;
-    totalMilestones += c.milestoneCount;
+    totalMilestones += c.milestoneCount ?? 0;
     if (c.status === "Completed" || c.status === "Successful") completed++;
     else if (c.status === "Failed") failed++;
     else if (c.status === "Active") active++;
     else if (c.status === "Funded") funded++;
 
     try {
-      const mss = await fetchAllMilestones(c.id, c.milestoneCount);
+      const mss = await fetchAllMilestones(c.id, c.milestoneCount ?? 0);
       for (const ms of mss) {
         if (ms.status === "Approved" || ms.status === "Released") approved++;
         else if (ms.status === "Rejected") rejected++;

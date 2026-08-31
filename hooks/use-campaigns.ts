@@ -14,7 +14,7 @@ import {
   submitAndTrack,
 } from "@/lib/soroban-client";
 import { useTxStore } from "@/lib/tx-store";
-import { useWallet } from "./use-wallet";
+import { useWallet } from "@/hooks/use-wallet";
 import {
   xlmToStroops,
   stroopsToXLM,
@@ -22,10 +22,10 @@ import {
   calcDaysLeft,
   parseStellarError,
 } from "@/lib/stellar-utils";
-import type { CampaignUI, CreateCampaignInput } from "@/types";
+import type { CampaignUI, CreateCampaignInput } from "@/types/index";
 import { useToast } from "@/hooks/use-toast";
 
-const POLL_INTERVAL = 10_000; // 10s
+const POLL_INTERVAL = 10_000;
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -40,13 +40,21 @@ export const campaignKeys = {
     [...campaignKeys.all, "backer", address] as const,
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── UI Transform ─────────────────────────────────────────────────────────────
 
 function toCampaignUI(c: Awaited<ReturnType<typeof fetchCampaign>>): CampaignUI {
   return {
     ...c,
     goalXLM: stroopsToXLM(c.goal),
     raisedXLM: stroopsToXLM(c.raised),
+    // Level 1/2 crowdfunding contract has no escrow/release mechanism.
+    // c.escrowed and c.released are optional on Campaign (0n when absent).
+    // We resolve them to 0 here — accurate for L1/2, non-zero only for L3/4.
+    escrowedXLM: stroopsToXLM(c.escrowed ?? 0n),
+    releasedXLM: stroopsToXLM(c.released ?? 0n),
+    // Explicitly set so CampaignUI.milestoneCount is `number`, not `number | undefined`.
+    // L1/2 crowdfunding contract returns no milestone data; 0 is the accurate value.
+    milestoneCount: c.milestoneCount ?? 0,
     progress: calcProgress(c.raised, c.goal),
     daysLeft: calcDaysLeft(c.deadline),
     isExpired: calcDaysLeft(c.deadline) === 0,
@@ -137,14 +145,12 @@ export function useCreateCampaign() {
       });
 
       const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
-        updateTransaction(txId, { status: status as "pending" | "success" | "failed" });
+        updateTransaction(txId, {
+          status: status as "pending" | "success" | "failed",
+        });
       });
 
-      updateTransaction(txId, {
-        status: "success",
-        id: hash,
-        ledger,
-      });
+      updateTransaction(txId, { status: "success", id: hash, ledger });
 
       return { hash, txId };
     },
@@ -153,7 +159,8 @@ export function useCreateCampaign() {
       queryClient.invalidateQueries({ queryKey: campaignKeys.count() });
       toast({
         title: "Campaign Created! 🎉",
-        description: `Your campaign is now live on the Stellar network.`,
+        description: "Your campaign is now live on Stellar.",
+        variant: "success",
         txHash: hash,
       });
     },
@@ -184,7 +191,6 @@ export function useContribute() {
       if (!address) throw new Error("Wallet not connected");
 
       const amountStroops = xlmToStroops(amountXLM);
-
       const { tx } = await buildContributeTx(address, campaignId, amountStroops);
       const signedXdr = await signTransaction(tx);
 
@@ -197,7 +203,9 @@ export function useContribute() {
       });
 
       const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
-        updateTransaction(txId, { status: status as "pending" | "success" | "failed" });
+        updateTransaction(txId, {
+          status: status as "pending" | "success" | "failed",
+        });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
@@ -205,7 +213,9 @@ export function useContribute() {
       return { hash, txId };
     },
     onSuccess: ({ hash }, vars) => {
-      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(vars.campaignId) });
+      queryClient.invalidateQueries({
+        queryKey: campaignKeys.detail(vars.campaignId),
+      });
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: campaignKeys.contribution(vars.campaignId, address || ""),
@@ -213,6 +223,7 @@ export function useContribute() {
       toast({
         title: "Contribution Successful! ✨",
         description: `You backed this campaign with ${vars.amountXLM} XLM.`,
+        variant: "success",
         txHash: hash,
       });
     },
@@ -247,7 +258,9 @@ export function useClaimFunds() {
       });
 
       const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
-        updateTransaction(txId, { status: status as "pending" | "success" | "failed" });
+        updateTransaction(txId, {
+          status: status as "pending" | "success" | "failed",
+        });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
@@ -255,10 +268,13 @@ export function useClaimFunds() {
       return { hash };
     },
     onSuccess: ({ hash }, campaignId) => {
-      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(campaignId) });
+      queryClient.invalidateQueries({
+        queryKey: campaignKeys.detail(campaignId),
+      });
       toast({
         title: "Funds Claimed! 💰",
         description: "Campaign funds have been sent to your wallet.",
+        variant: "success",
         txHash: hash,
       });
     },
@@ -293,7 +309,9 @@ export function useCancelCampaign() {
       });
 
       const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
-        updateTransaction(txId, { status: status as "pending" | "success" | "failed" });
+        updateTransaction(txId, {
+          status: status as "pending" | "success" | "failed",
+        });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
@@ -301,7 +319,9 @@ export function useCancelCampaign() {
       return { hash };
     },
     onSuccess: ({ hash }, campaignId) => {
-      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(campaignId) });
+      queryClient.invalidateQueries({
+        queryKey: campaignKeys.detail(campaignId),
+      });
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() });
       toast({
         title: "Campaign Cancelled",

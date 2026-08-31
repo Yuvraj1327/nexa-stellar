@@ -1,8 +1,7 @@
 import {
   Contract,
-rpc,
+  rpc,
   TransactionBuilder,
-  Networks,
   BASE_FEE,
   xdr,
   Address,
@@ -10,7 +9,7 @@ rpc,
   scValToNative,
 } from "@stellar/stellar-sdk";
 import { CONTRACT_CONFIG } from "./contract-config";
-import type { Campaign, CampaignStatus, ContractEvent, EventType } from "@/types";
+import type { Campaign, CampaignStatus, ContractEvent, EventType } from "@/types/index";
 
 // ─── RPC Client ──────────────────────────────────────────────────────────────
 
@@ -49,10 +48,6 @@ function toScI128(n: bigint) {
   return nativeToScVal(n, { type: "i128" });
 }
 
-function toScString(env: unknown, s: string) {
-  return nativeToScVal(s, { type: "string" });
-}
-
 // ─── Simulation ───────────────────────────────────────────────────────────────
 
 export async function simulateContractCall(
@@ -85,9 +80,9 @@ export async function simulateContractCall(
 
 // ─── Read-Only Calls ─────────────────────────────────────────────────────────
 
+const DUMMY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+
 export async function fetchCampaign(campaignId: bigint): Promise<Campaign> {
-  // Use a dummy address for read-only simulation
-  const DUMMY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
   const result = await simulateContractCall(DUMMY, "get_campaign", [
     toScU64(campaignId),
   ]);
@@ -95,7 +90,6 @@ export async function fetchCampaign(campaignId: bigint): Promise<Campaign> {
 }
 
 export async function fetchCampaignCount(): Promise<bigint> {
-  const DUMMY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
   const result = await simulateContractCall(DUMMY, "get_campaign_count", []);
   return scValToNative(result) as bigint;
 }
@@ -104,24 +98,19 @@ export async function fetchAllCampaigns(): Promise<Campaign[]> {
   const count = await fetchCampaignCount();
   if (count === 0n) return [];
 
-  const campaigns: Campaign[] = [];
   const fetchPromises = Array.from({ length: Number(count) }, (_, i) =>
     fetchCampaign(BigInt(i + 1)).catch(() => null),
   );
 
   const results = await Promise.all(fetchPromises);
-  for (const r of results) {
-    if (r) campaigns.push(r);
-  }
-  return campaigns;
+  return results.filter(Boolean) as Campaign[];
 }
 
 export async function fetchContribution(
   campaignId: bigint,
   contributor: string,
 ): Promise<bigint> {
-  const DUMMY = contributor;
-  const result = await simulateContractCall(DUMMY, "get_contribution", [
+  const result = await simulateContractCall(contributor, "get_contribution", [
     toScU64(campaignId),
     toScAddress(contributor),
   ]);
@@ -137,152 +126,96 @@ export async function fetchBackerCampaigns(backer: string): Promise<bigint[]> {
 
 // ─── Transaction Building ─────────────────────────────────────────────────────
 
+async function buildAndSimulate(
+  sourceAddress: string,
+  operation: xdr.Operation,
+): Promise<{ tx: string }> {
+  const server = getRpcServer();
+  const account = await server.getAccount(sourceAddress);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: networkPassphrase(),
+  })
+    .addOperation(operation)
+    .setTimeout(30)
+    .build();
+
+  const simResult = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(simResult)) {
+    const msg = simResult.error || "Simulation failed";
+    if (msg.includes("Campaign is not active")) throw new Error("Campaign is not accepting contributions");
+    if (msg.includes("deadline has passed")) throw new Error("Campaign deadline has passed");
+    if (msg.includes("Goal must be positive")) throw new Error("Campaign goal must be greater than 0");
+    if (msg.includes("Only the creator")) throw new Error("Only the campaign creator can perform this action");
+    throw new Error(msg);
+  }
+  if (!rpc.Api.isSimulationSuccess(simResult)) {
+    throw new Error("Simulation failed");
+  }
+
+  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
+  return { tx: preparedTx.toXDR() };
+}
+
 export async function buildCreateCampaignTx(
   sourceAddress: string,
   title: string,
   description: string,
   goalStroops: bigint,
   durationSeconds: bigint,
-): Promise<{ tx: string; simulationResult: rpc.Api.SimulateTransactionSuccessResponse }> {
-  const server = getRpcServer();
+): Promise<{ tx: string }> {
   const contract = getContract();
-
-  const account = await server.getAccount(sourceAddress);
-
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: networkPassphrase(),
-  })
-    .addOperation(
-      contract.call(
-        "create_campaign",
-        toScAddress(sourceAddress),
-        nativeToScVal(title, { type: "string" }),
-        nativeToScVal(description, { type: "string" }),
-        toScI128(goalStroops),
-        toScU64(durationSeconds),
-      ),
-    )
-    .setTimeout(30)
-    .build();
-
-  const simResult = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(simResult)) {
-    throw new Error(simResult.error);
-  }
-  if (!rpc.Api.isSimulationSuccess(simResult)) {
-    throw new Error("Simulation failed");
-  }
-
-  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
-  return { tx: preparedTx.toXDR(), simulationResult: simResult };
+  const op = contract.call(
+    "create_campaign",
+    toScAddress(sourceAddress),
+    nativeToScVal(title, { type: "string" }),
+    nativeToScVal(description, { type: "string" }),
+    toScI128(goalStroops),
+    toScU64(durationSeconds),
+  );
+  return buildAndSimulate(sourceAddress, op);
 }
 
 export async function buildContributeTx(
   sourceAddress: string,
   campaignId: bigint,
   amountStroops: bigint,
-): Promise<{ tx: string; simulationResult: rpc.Api.SimulateTransactionSuccessResponse }> {
-  const server = getRpcServer();
+): Promise<{ tx: string }> {
   const contract = getContract();
-
-  const account = await server.getAccount(sourceAddress);
-
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: networkPassphrase(),
-  })
-    .addOperation(
-      contract.call(
-        "contribute",
-        toScU64(campaignId),
-        toScAddress(sourceAddress),
-        toScI128(amountStroops),
-      ),
-    )
-    .setTimeout(30)
-    .build();
-
-  const simResult = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(simResult)) {
-    throw new Error(simResult.error);
-  }
-  if (!rpc.Api.isSimulationSuccess(simResult)) {
-    throw new Error("Simulation failed");
-  }
-
-  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
-  return { tx: preparedTx.toXDR(), simulationResult: simResult };
+  const op = contract.call(
+    "contribute",
+    toScU64(campaignId),
+    toScAddress(sourceAddress),
+    toScI128(amountStroops),
+  );
+  return buildAndSimulate(sourceAddress, op);
 }
 
 export async function buildClaimFundsTx(
   sourceAddress: string,
   campaignId: bigint,
 ): Promise<{ tx: string }> {
-  const server = getRpcServer();
   const contract = getContract();
-
-  const account = await server.getAccount(sourceAddress);
-
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: networkPassphrase(),
-  })
-    .addOperation(
-      contract.call(
-        "claim_funds",
-        toScU64(campaignId),
-        toScAddress(sourceAddress),
-      ),
-    )
-    .setTimeout(30)
-    .build();
-
-  const simResult = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(simResult)) {
-    throw new Error(simResult.error);
-  }
-  if (!rpc.Api.isSimulationSuccess(simResult)) {
-    throw new Error("Simulation failed");
-  }
-
-  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
-  return { tx: preparedTx.toXDR() };
+  const op = contract.call(
+    "claim_funds",
+    toScU64(campaignId),
+    toScAddress(sourceAddress),
+  );
+  return buildAndSimulate(sourceAddress, op);
 }
 
 export async function buildCancelCampaignTx(
   sourceAddress: string,
   campaignId: bigint,
 ): Promise<{ tx: string }> {
-  const server = getRpcServer();
   const contract = getContract();
-
-  const account = await server.getAccount(sourceAddress);
-
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: networkPassphrase(),
-  })
-    .addOperation(
-      contract.call(
-        "cancel_campaign",
-        toScU64(campaignId),
-        toScAddress(sourceAddress),
-      ),
-    )
-    .setTimeout(30)
-    .build();
-
-  const simResult = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(simResult)) {
-    throw new Error(simResult.error);
-  }
-  if (!rpc.Api.isSimulationSuccess(simResult)) {
-    throw new Error("Simulation failed");
-  }
-
-  const preparedTx = rpc.assembleTransaction(tx, simResult).build();
-  return { tx: preparedTx.toXDR() };
+  const op = contract.call(
+    "cancel_campaign",
+    toScU64(campaignId),
+    toScAddress(sourceAddress),
+  );
+  return buildAndSimulate(sourceAddress, op);
 }
 
 // ─── Transaction Submission & Tracking ────────────────────────────────────────
@@ -292,10 +225,9 @@ export async function submitAndTrack(
   onStatus?: (status: string) => void,
 ): Promise<{ hash: string; ledger?: number }> {
   const server = getRpcServer();
-
   const tx = TransactionBuilder.fromXDR(signedXdr, networkPassphrase());
-  onStatus?.("submitting");
 
+  onStatus?.("submitting");
   const sendResult = await server.sendTransaction(tx);
   if (sendResult.status === "ERROR") {
     const err = sendResult.errorResult?.result()?.value()?.toString();
@@ -305,7 +237,6 @@ export async function submitAndTrack(
   const hash = sendResult.hash;
   onStatus?.("pending");
 
-  // Poll for completion
   for (let i = 0; i < 30; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     const getResult = await server.getTransaction(hash);
@@ -315,9 +246,8 @@ export async function submitAndTrack(
       return { hash, ledger: getResult.ledger };
     }
     if (getResult.status === rpc.Api.GetTransactionStatus.FAILED) {
-      const errMsg = "Transaction failed on-chain";
       onStatus?.("failed");
-      throw new Error(errMsg);
+      throw new Error("Transaction failed on-chain");
     }
   }
 
@@ -345,7 +275,6 @@ export async function fetchContractEvents(
 
     return eventsResult.events.map((e, idx) => {
       const topic0 = e.topic[0] ? scValToNative(e.topic[0]) : "";
-      const topic1 = e.topic[1] ? scValToNative(e.topic[1]) : "";
       const values = e.value ? (scValToNative(e.value) as unknown[]) : [];
 
       let campaignId = 0n;
@@ -353,20 +282,25 @@ export async function fetchContractEvents(
       let amount: bigint | undefined;
 
       if (Array.isArray(values)) {
-        campaignId = typeof values[0] === "bigint" ? values[0] : BigInt(String(values[0] || 0));
+        campaignId =
+          typeof values[0] === "bigint"
+            ? values[0]
+            : BigInt(String(values[0] || 0));
         actor = String(values[1] || "");
-        amount = values[2] !== undefined ? BigInt(String(values[2])) : undefined;
+        if (values[2] !== undefined) {
+          try {
+            amount = BigInt(String(values[2]));
+          } catch {}
+        }
       }
-
-      const eventType = String(topic0) as EventType;
 
       return {
         id: `${e.txHash}-${idx}`,
-        type: eventType,
+        type: String(topic0) as EventType,
         campaignId,
         actor,
         amount,
-        timestamp: Date.now(), // Approximate; ledger timestamp not directly available
+        timestamp: Date.now(),
         txHash: e.txHash,
         ledger: e.ledger,
       } as ContractEvent;
@@ -376,7 +310,7 @@ export async function fetchContractEvents(
   }
 }
 
-// ─── SC Val Parser ────────────────────────────────────────────────────────────
+// ─── SC Val → Campaign ────────────────────────────────────────────────────────
 
 function scValToCampaign(val: xdr.ScVal): Campaign {
   const raw = scValToNative(val) as Record<string, unknown>;
@@ -384,8 +318,7 @@ function scValToCampaign(val: xdr.ScVal): Campaign {
   const statusRaw = raw.status as Record<string, unknown> | string;
   let status: CampaignStatus = "Active";
   if (typeof statusRaw === "object" && statusRaw !== null) {
-    const key = Object.keys(statusRaw)[0];
-    status = key as CampaignStatus;
+    status = Object.keys(statusRaw)[0] as CampaignStatus;
   } else if (typeof statusRaw === "string") {
     status = statusRaw as CampaignStatus;
   }
@@ -397,6 +330,12 @@ function scValToCampaign(val: xdr.ScVal): Campaign {
     description: String(raw.description ?? ""),
     goal: BigInt(String(raw.goal ?? 0)),
     raised: BigInt(String(raw.raised ?? 0)),
+    // The Level 1/2 crowdfunding contract has no escrow or milestone mechanism.
+    // These fields are 0n/0 here — an accurate representation of L1/2 contract state.
+    // The Campaign interface marks them optional so parsers for both contracts satisfy it.
+    escrowed: 0n,
+    released: 0n,
+    milestoneCount: 0,
     deadline: BigInt(String(raw.deadline ?? 0)),
     status,
     backerCount: BigInt(String(raw.backer_count ?? 0)),
@@ -412,7 +351,9 @@ export async function fetchXLMBalance(address: string): Promise<string> {
     const res = await fetch(`${horizonUrl}/accounts/${address}`);
     if (!res.ok) return "0";
     const data = await res.json();
-    const xlm = data.balances?.find((b: { asset_type: string }) => b.asset_type === "native");
+    const xlm = data.balances?.find(
+      (b: { asset_type: string }) => b.asset_type === "native",
+    );
     return xlm?.balance || "0";
   } catch {
     return "0";

@@ -38,8 +38,11 @@ export function toCampaignUI(c: Awaited<ReturnType<typeof fetchCampaign>>): Camp
     ...c,
     goalXLM: stroopsToXLM(c.goal),
     raisedXLM: stroopsToXLM(c.raised),
-    escrowedXLM: stroopsToXLM(c.escrowed),
-    releasedXLM: stroopsToXLM(c.released),
+    escrowedXLM: stroopsToXLM(c.escrowed ?? 0n),
+    releasedXLM: stroopsToXLM(c.released ?? 0n),
+    // Explicitly set so CampaignUI.milestoneCount is `number`, not `number | undefined`.
+    // milestone-client always populates this from on-chain data (Number(r.milestone_count ?? 0)).
+    milestoneCount: c.milestoneCount ?? 0,
     progress: c.goal > 0n ? Math.min(100, Math.round(Number((c.raised * 1000n) / c.goal) / 10)) : 0,
     daysLeft,
     isExpired: daysLeft === 0,

@@ -1,3 +1,11 @@
+/**
+ * flowlance-client.ts
+ *
+ * Legacy client — superseded by milestone-client.ts.
+ * Kept to avoid TypeScript "unused file" issues.
+ * All new code should use milestone-client.ts instead.
+ */
+
 import {
   Contract,
   rpc,
@@ -9,12 +17,15 @@ import {
   scValToNative,
 } from "@stellar/stellar-sdk";
 import type {
-  CampaignV2,
+  Campaign,
   CampaignStatus,
   Milestone,
   MilestoneStatus,
   AnalyticsData,
-} from "@/types/milestone";
+} from "@/types/index";
+
+// Re-export aliases for any code that may reference CampaignV2
+export type { Campaign as CampaignV2 };
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -33,8 +44,6 @@ const NETWORK_PASSPHRASE =
 const HORIZON_URL =
   process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
 
-// ─── Dummy address for read-only simulations ──────────────────────────────────
-
 const DUMMY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
 
 // ─── RPC ─────────────────────────────────────────────────────────────────────
@@ -49,14 +58,15 @@ export function getFlowLanceContract(): Contract {
   return new Contract(FLOWLANCE_CONTRACT_ID);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── ScVal Helpers ────────────────────────────────────────────────────────────
 
-function addr(a: string) { return new Address(a).toScVal(); }
-function u64(n: bigint) { return nativeToScVal(n, { type: "u64" }); }
-function u32(n: number) { return nativeToScVal(n, { type: "u32" }); }
-function i128(n: bigint) { return nativeToScVal(n, { type: "i128" }); }
-function str(env: unknown, s: string) { return nativeToScVal(s, { type: "string" }); }
-function bool(b: boolean) { return nativeToScVal(b, { type: "bool" }); }
+const a = (addr: string) => new Address(addr).toScVal();
+const u64 = (n: bigint) => nativeToScVal(n, { type: "u64" });
+const u32 = (n: number) => nativeToScVal(n, { type: "u32" });
+const i128 = (n: bigint) => nativeToScVal(n, { type: "i128" });
+const b = (v: boolean) => nativeToScVal(v, { type: "bool" });
+
+// ─── Simulation ───────────────────────────────────────────────────────────────
 
 async function simulate(method: string, args: xdr.ScVal[]): Promise<xdr.ScVal> {
   const server = getServer();
@@ -95,13 +105,12 @@ async function buildTx(
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) throw new Error(sim.error);
   if (!rpc.Api.isSimulationSuccess(sim)) throw new Error("Simulation failed");
-
   return rpc.assembleTransaction(tx, sim).build().toXDR();
 }
 
 export async function submitAndPoll(
   signedXdr: string,
-  onStatus?: (s: string) => void,
+  onStatus?: (status: string) => void,
 ): Promise<{ hash: string; ledger?: number }> {
   const server = getServer();
   const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
@@ -128,20 +137,18 @@ export async function submitAndPoll(
 // ─── Parsers ─────────────────────────────────────────────────────────────────
 
 function parseStatus(raw: unknown): CampaignStatus {
-  if (typeof raw === "object" && raw !== null) {
+  if (typeof raw === "object" && raw !== null)
     return Object.keys(raw as object)[0] as CampaignStatus;
-  }
-  return (raw as string) as CampaignStatus;
+  return raw as CampaignStatus;
 }
 
 function parseMilestoneStatus(raw: unknown): MilestoneStatus {
-  if (typeof raw === "object" && raw !== null) {
+  if (typeof raw === "object" && raw !== null)
     return Object.keys(raw as object)[0] as MilestoneStatus;
-  }
-  return (raw as string) as MilestoneStatus;
+  return raw as MilestoneStatus;
 }
 
-export function parseCampaign(val: xdr.ScVal): CampaignV2 {
+export function parseCampaign(val: xdr.ScVal): Campaign {
   const r = scValToNative(val) as Record<string, unknown>;
   return {
     id: BigInt(String(r.id ?? 0)),
@@ -176,9 +183,9 @@ export function parseMilestone(val: xdr.ScVal): Milestone {
   };
 }
 
-// ─── Read-Only Calls ─────────────────────────────────────────────────────────
+// ─── Read-Only ────────────────────────────────────────────────────────────────
 
-export async function fetchCampaignV2(id: bigint): Promise<CampaignV2> {
+export async function fetchCampaignV2(id: bigint): Promise<Campaign> {
   return parseCampaign(await simulate("get_campaign", [u64(id)]));
 }
 
@@ -186,7 +193,7 @@ export async function fetchCampaignCount(): Promise<bigint> {
   return scValToNative(await simulate("get_campaign_count", [])) as bigint;
 }
 
-export async function fetchAllCampaignsV2(): Promise<CampaignV2[]> {
+export async function fetchAllCampaignsV2(): Promise<Campaign[]> {
   const count = await fetchCampaignCount();
   if (count === 0n) return [];
   const results = await Promise.all(
@@ -194,16 +201,7 @@ export async function fetchAllCampaignsV2(): Promise<CampaignV2[]> {
       fetchCampaignV2(BigInt(i + 1)).catch(() => null),
     ),
   );
-  return results.filter(Boolean) as CampaignV2[];
-}
-
-export async function fetchMilestone(
-  campaignId: bigint,
-  milestoneId: number,
-): Promise<Milestone> {
-  return parseMilestone(
-    await simulate("get_milestone", [u64(campaignId), u32(milestoneId)]),
-  );
+  return results.filter(Boolean) as Campaign[];
 }
 
 export async function fetchAllMilestones(
@@ -213,38 +211,12 @@ export async function fetchAllMilestones(
   if (count === 0) return [];
   const results = await Promise.all(
     Array.from({ length: count }, (_, i) =>
-      fetchMilestone(campaignId, i + 1).catch(() => null),
+      simulate("get_milestone", [u64(campaignId), u32(i + 1)])
+        .then((v) => parseMilestone(v))
+        .catch(() => null),
     ),
   );
   return results.filter(Boolean) as Milestone[];
-}
-
-export async function fetchContributionV2(
-  campaignId: bigint,
-  backer: string,
-): Promise<bigint> {
-  return scValToNative(
-    await simulate("get_contribution", [u64(campaignId), addr(backer)]),
-  ) as bigint;
-}
-
-export async function fetchHasVoted(
-  campaignId: bigint,
-  milestoneId: number,
-  voter: string,
-): Promise<boolean> {
-  return scValToNative(
-    await simulate("has_voted", [u64(campaignId), u32(milestoneId), addr(voter)]),
-  ) as boolean;
-}
-
-export async function fetchIsRefundClaimed(
-  campaignId: bigint,
-  backer: string,
-): Promise<boolean> {
-  return scValToNative(
-    await simulate("is_refund_claimed", [u64(campaignId), addr(backer)]),
-  ) as boolean;
 }
 
 export async function fetchXLMBalance(address: string): Promise<string> {
@@ -265,15 +237,9 @@ export async function fetchXLMBalance(address: string): Promise<string> {
 
 export async function fetchAnalytics(): Promise<AnalyticsData> {
   const campaigns = await fetchAllCampaignsV2();
-
-  let totalRaised = 0n;
-  let totalEscrowed = 0n;
-  let totalReleased = 0n;
-  let totalBackers = 0n;
-  let totalMilestones = 0;
-  let approvedMilestones = 0;
-  let rejectedMilestones = 0;
-  let completed = 0;
+  let totalRaised = 0n, totalEscrowed = 0n, totalReleased = 0n, totalBackers = 0n;
+  let totalMilestones = 0, approvedMilestones = 0, rejectedMilestones = 0;
+  let pendingMilestones = 0, completed = 0, failed = 0, active = 0, funded = 0;
 
   for (const c of campaigns) {
     totalRaised += c.raised;
@@ -281,22 +247,28 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
     totalReleased += c.released;
     totalBackers += c.backerCount;
     totalMilestones += c.milestoneCount;
-    if (c.status === "Completed") completed++;
+    if (c.status === "Completed" || c.status === "Successful") completed++;
+    else if (c.status === "Failed") failed++;
+    else if (c.status === "Active") active++;
+    else if (c.status === "Funded") funded++;
 
-    // Fetch milestones for stats
     try {
       const mss = await fetchAllMilestones(c.id, c.milestoneCount);
       for (const ms of mss) {
         if (ms.status === "Approved" || ms.status === "Released") approvedMilestones++;
-        if (ms.status === "Rejected") rejectedMilestones++;
+        else if (ms.status === "Rejected") rejectedMilestones++;
+        else if (ms.status === "Pending" || ms.status === "Voting") pendingMilestones++;
       }
     } catch {}
   }
 
+  const n = campaigns.length;
   return {
-    totalCampaigns: campaigns.length,
-    activeCampaigns: campaigns.filter((c) => c.status === "Active").length,
+    totalCampaigns: n,
+    activeCampaigns: active,
+    fundedCampaigns: funded,
     completedCampaigns: completed,
+    failedCampaigns: failed,
     totalRaisedXLM: Number(totalRaised) / 10_000_000,
     totalEscrowedXLM: Number(totalEscrowed) / 10_000_000,
     totalReleasedXLM: Number(totalReleased) / 10_000_000,
@@ -304,129 +276,30 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
     totalMilestones,
     approvedMilestones,
     rejectedMilestones,
-    successRate:
-      campaigns.length > 0 ? Math.round((completed / campaigns.length) * 100) : 0,
-    avgFundingXLM:
-      campaigns.length > 0
-        ? Math.round(Number(totalRaised) / 10_000_000 / campaigns.length)
-        : 0,
+    pendingMilestones,
+    successRate: n > 0 ? Math.round((completed / n) * 100) : 0,
+    avgFundingXLM: n > 0 ? Math.round(Number(totalRaised) / 10_000_000 / n) : 0,
   };
 }
 
 // ─── Transaction Builders ─────────────────────────────────────────────────────
 
-export async function buildCreateCampaignV2Tx(
-  from: string,
-  title: string,
-  description: string,
-  goalStroops: bigint,
-  durationSeconds: bigint,
-): Promise<string> {
-  return buildTx(from, "create_campaign", [
-    addr(from),
-    nativeToScVal(title, { type: "string" }),
-    nativeToScVal(description, { type: "string" }),
-    i128(goalStroops),
-    u64(durationSeconds),
-  ]);
-}
+export const buildCreateCampaignTx = (
+  from: string, title: string, description: string,
+  goalStroops: bigint, durationSec: bigint,
+) => buildTx(from, "create_campaign", [
+  a(from),
+  nativeToScVal(title, { type: "string" }),
+  nativeToScVal(description, { type: "string" }),
+  i128(goalStroops),
+  u64(durationSec),
+]);
 
-export async function buildAddMilestoneTx(
-  from: string,
-  campaignId: bigint,
-  title: string,
-  description: string,
-  amountStroops: bigint,
-): Promise<string> {
-  return buildTx(from, "add_milestone", [
-    u64(campaignId),
-    addr(from),
-    nativeToScVal(title, { type: "string" }),
-    nativeToScVal(description, { type: "string" }),
-    i128(amountStroops),
-  ]);
-}
+export const buildContributeTx = (from: string, campaignId: bigint, amt: bigint) =>
+  buildTx(from, "contribute", [u64(campaignId), a(from), i128(amt)]);
 
-export async function buildContributeV2Tx(
-  from: string,
-  campaignId: bigint,
-  amountStroops: bigint,
-): Promise<string> {
-  return buildTx(from, "contribute", [
-    u64(campaignId),
-    addr(from),
-    i128(amountStroops),
-  ]);
-}
+export const buildVoteTx = (from: string, cid: bigint, mid: number, approve: boolean) =>
+  buildTx(from, "vote_milestone", [u64(cid), u32(mid), a(from), b(approve)]);
 
-export async function buildStartCampaignTx(
-  from: string,
-  campaignId: bigint,
-): Promise<string> {
-  return buildTx(from, "start_campaign", [u64(campaignId), addr(from)]);
-}
-
-export async function buildSubmitMilestoneTx(
-  from: string,
-  campaignId: bigint,
-  milestoneId: number,
-  proofUrl: string,
-): Promise<string> {
-  return buildTx(from, "submit_milestone", [
-    u64(campaignId),
-    u32(milestoneId),
-    addr(from),
-    nativeToScVal(proofUrl, { type: "string" }),
-  ]);
-}
-
-export async function buildVoteMilestoneTx(
-  from: string,
-  campaignId: bigint,
-  milestoneId: number,
-  approve: boolean,
-): Promise<string> {
-  return buildTx(from, "vote_milestone", [
-    u64(campaignId),
-    u32(milestoneId),
-    addr(from),
-    bool(approve),
-  ]);
-}
-
-export async function buildFinalizeMilestoneTx(
-  from: string,
-  campaignId: bigint,
-  milestoneId: number,
-): Promise<string> {
-  return buildTx(from, "finalize_milestone", [
-    u64(campaignId),
-    u32(milestoneId),
-  ]);
-}
-
-export async function buildReleaseFundsTx(
-  from: string,
-  campaignId: bigint,
-  milestoneId: number,
-): Promise<string> {
-  return buildTx(from, "release_milestone_funds", [
-    u64(campaignId),
-    u32(milestoneId),
-    addr(from),
-  ]);
-}
-
-export async function buildClaimRefundTx(
-  from: string,
-  campaignId: bigint,
-): Promise<string> {
-  return buildTx(from, "claim_refund", [u64(campaignId), addr(from)]);
-}
-
-export async function buildCancelCampaignV2Tx(
-  from: string,
-  campaignId: bigint,
-): Promise<string> {
-  return buildTx(from, "cancel_campaign", [u64(campaignId), addr(from)]);
-}
+export const buildClaimRefundTx = (from: string, campaignId: bigint) =>
+  buildTx(from, "claim_refund", [u64(campaignId), a(from)]);

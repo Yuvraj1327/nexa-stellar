@@ -200,3 +200,20 @@ export interface ToastMessage {
   variant: "default" | "destructive" | "success";
   txHash?: string;
 }
+
+// ─── Campaign Input (used by use-campaigns.ts / CreateCampaignModal) ──────────
+
+export interface CreateCampaignInput {
+  title: string;
+  description: string;
+  goalXLM: number;
+  durationDays: number;
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+export interface PaginationState {
+  page: number;
+  pageSize: number;
+  total: number;
+}

@@ -26,9 +26,11 @@ function Logo() {
   return (
     <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
       {/* Icon */}
-      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-stellar-blue to-stellar-purple flex items-center justify-center shadow-lg shadow-stellar-blue/20 group-hover:shadow-stellar-blue/40 transition-shadow">
-        <span className="text-base font-black text-white tracking-tighter">N</span>
-      </div>
+    <img
+  src="https://i.ibb.co/27ZvbBRQ/Chat-GPT-Image-Aug-31-2026-07-10-17-PM.png"
+  alt="Nexa Stellar"
+  className="w-8 h-8 rounded-xl object-cover"
+/>
       {/* Name — always visible */}
       <div className="flex flex-col leading-none">
         <span className="font-bold text-white text-[15px] tracking-tight">nexa</span>

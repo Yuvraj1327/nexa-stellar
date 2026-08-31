@@ -67,7 +67,21 @@ export async function simulateContractCall(
     .setTimeout(30)
     .build();
 
-  const simResult = await server.simulateTransaction(tx);
+  let simResult;
+  try {
+    simResult = await server.simulateTransaction(tx);
+  } catch (err: unknown) {
+    const msg = String((err as Error)?.message ?? err ?? "");
+    // stellar-sdk v13 cannot parse some XDR returned by newer soroban-sdk contracts.
+    // Surface the raw error so the user sees something meaningful.
+    if (msg.includes("Bad union switch") || msg.includes("union switch")) {
+      throw new Error(
+        "Contract call failed. The contract may have returned an error that could not be decoded. " +
+        "Check that the contract is initialized and your inputs are valid."
+      );
+    }
+    throw err;
+  }
   if (rpc.Api.isSimulationError(simResult)) {
     throw new Error(simResult.error);
   }
@@ -141,7 +155,19 @@ async function buildAndSimulate(
     .setTimeout(30)
     .build();
 
-  const simResult = await server.simulateTransaction(tx);
+  let simResult;
+  try {
+    simResult = await server.simulateTransaction(tx);
+  } catch (err: unknown) {
+    const msg = String((err as Error)?.message ?? err ?? "");
+    if (msg.includes("Bad union switch") || msg.includes("union switch")) {
+      throw new Error(
+        "Contract simulation failed. This usually means the contract returned an error " +
+        "that stellar-sdk could not decode. Check your inputs and try again."
+      );
+    }
+    throw err;
+  }
   if (rpc.Api.isSimulationError(simResult)) {
     const msg = simResult.error || "Simulation failed";
     if (msg.includes("Campaign is not active")) throw new Error("Campaign is not accepting contributions");

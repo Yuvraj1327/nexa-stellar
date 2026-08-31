@@ -112,7 +112,19 @@ async function buildTx(
     .setTimeout(30)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  let sim;
+  try {
+    sim = await server.simulateTransaction(tx);
+  } catch (err: unknown) {
+    const msg = String((err as Error)?.message ?? err ?? "");
+    if (msg.includes("Bad union switch") || msg.includes("union switch")) {
+      throw new Error(
+        "Contract simulation failed — could not decode the response. " +
+        "Check your inputs and that the contract is properly initialized."
+      );
+    }
+    throw err;
+  }
   if (rpc.Api.isSimulationError(sim)) {
     // Parse contract error for user-friendly message
     const errMsg = sim.error || "Contract error";
@@ -120,6 +132,8 @@ async function buildTx(
     if (errMsg.includes("already voted")) throw new Error("You have already voted on this milestone");
     if (errMsg.includes("Only backers")) throw new Error("Only campaign backers can vote");
     if (errMsg.includes("not accepting funds")) throw new Error("Campaign is not currently accepting contributions");
+    if (errMsg.includes("Minimum goal")) throw new Error("Minimum campaign goal is 1 XLM");
+    if (errMsg.includes("Minimum duration")) throw new Error("Minimum campaign duration is 1 hour");
     throw new Error(errMsg);
   }
   if (!rpc.Api.isSimulationSuccess(sim)) throw new Error("Simulation failed");

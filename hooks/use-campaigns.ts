@@ -7,12 +7,17 @@ import {
   fetchCampaignCount,
   fetchContribution,
   fetchBackerCampaigns,
-  buildCreateCampaignTx,
   buildContributeTx,
   buildClaimFundsTx,
   buildCancelCampaignTx,
   submitAndTrack,
 } from "@/lib/soroban-client";
+// useCreateCampaign uses milestone-client so campaigns are created on the
+// deployed milestone escrow contract (NEXT_PUBLIC_MILESTONE_CONTRACT_ID).
+import {
+  buildCreateCampaignTx,
+  submitAndPoll,
+} from "@/lib/milestone-client";
 import { useTxStore } from "@/lib/tx-store";
 import { useWallet } from "@/hooks/use-wallet";
 import {
@@ -128,7 +133,8 @@ export function useCreateCampaign() {
       const goalStroops = xlmToStroops(input.goalXLM);
       const durationSeconds = BigInt(input.durationDays * 86400);
 
-      const { tx } = await buildCreateCampaignTx(
+      // buildCreateCampaignTx from milestone-client returns a plain string XDR
+      const txXdr = await buildCreateCampaignTx(
         address,
         input.title,
         input.description,
@@ -136,7 +142,7 @@ export function useCreateCampaign() {
         durationSeconds,
       );
 
-      const signedXdr = await signTransaction(tx);
+      const signedXdr = await signTransaction(txXdr);
 
       const txId = addTransaction({
         type: "create_campaign",
@@ -144,9 +150,9 @@ export function useCreateCampaign() {
         from: address,
       });
 
-      const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
+      const { hash, ledger } = await submitAndPoll(signedXdr, (status) => {
         updateTransaction(txId, {
-          status: status as "pending" | "success" | "failed",
+          status: status === "success" ? "success" : status === "failed" ? "failed" : "pending",
         });
       });
 

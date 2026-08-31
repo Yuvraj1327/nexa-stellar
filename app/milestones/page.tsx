@@ -13,7 +13,7 @@ function CampaignSection({ campaign }: { campaign: CampaignUI }) {
   const [open, setOpen] = useState(false);
 
   const STATUS_COLOR: Record<string, string> = {
-    Active: "text-blue-400", Funded: "text-cyan-400", InProgress: "text-yellow-400",
+    Active: "text-blue-400", Successful: "text-green-400", Funded: "text-cyan-400", InProgress: "text-yellow-400",
     Completed: "text-green-400", Failed: "text-red-400", Cancelled: "text-gray-400",
   };
 

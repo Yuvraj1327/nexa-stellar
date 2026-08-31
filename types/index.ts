@@ -2,13 +2,21 @@
 
 export type Network = "testnet" | "mainnet";
 
-// ─── Campaign (Level 1/2 — preserved) ────────────────────────────────────────
-
+// ─── Campaign Status ──────────────────────────────────────────────────────────
+//
+// Level 1/2 crowdfunding contract emits: Active | Successful | Failed | Cancelled
+// Level 3/4 milestone contract emits:    Active | Funded | InProgress | Completed | Failed | Cancelled
+//
+// Both sets are included here so that:
+//   - app/campaigns/[id]/page.tsx (Level 1/2) can compare === "Successful" without TS error
+//   - app/milestones/page.tsx (Level 3/4) can compare === "InProgress" etc without TS error
+//
 export type CampaignStatus =
   | "Active"
-  | "Funded"
-  | "InProgress"
-  | "Completed"
+  | "Successful"    // Level 1/2 crowdfunding contract
+  | "Funded"        // Level 3/4 milestone contract
+  | "InProgress"    // Level 3/4 milestone contract
+  | "Completed"     // Level 3/4 milestone contract
   | "Failed"
   | "Cancelled";
 
@@ -67,7 +75,7 @@ export interface MilestoneUI extends Milestone {
   isVotingOpen: boolean;
 }
 
-// ─── Transaction (Level 1/2 — preserved) ─────────────────────────────────────
+// ─── Transaction ──────────────────────────────────────────────────────────────
 
 export type TxStatus = "pending" | "success" | "failed";
 
@@ -110,7 +118,12 @@ export type EventType =
   | "FUNDSREL"
   | "REFUND"
   | "CAMPDONE"
-  | "CANCELD";
+  | "CANCELD"
+  // Level 1/2 contract events
+  | "CAMP_NEW"
+  | "CAMP_FUND"
+  | "CAMP_CLAM"
+  | "CAMP_CAN";
 
 export interface ContractEvent {
   id: string;

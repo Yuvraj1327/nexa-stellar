@@ -315,7 +315,7 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
     totalReleased += c.released;
     totalBackers += c.backerCount;
     totalMilestones += c.milestoneCount;
-    if (c.status === "Completed") completed++;
+    if (c.status === "Completed" || c.status === "Successful") completed++;
     else if (c.status === "Failed") failed++;
     else if (c.status === "Active") active++;
     else if (c.status === "Funded") funded++;

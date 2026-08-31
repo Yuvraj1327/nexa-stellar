@@ -1,78 +1,116 @@
-// ─── Stellar / Soroban Types ────────────────────────────────────────────────
+// ─── Network ─────────────────────────────────────────────────────────────────
 
 export type Network = "testnet" | "mainnet";
 
-export interface NetworkConfig {
-  rpcUrl: string;
-  networkPassphrase: string;
-  explorerBase: string;
-  horizonUrl: string;
-}
+// ─── Campaign (Level 1/2 — preserved) ────────────────────────────────────────
 
-// ─── Campaign Types ──────────────────────────────────────────────────────────
-
-export type CampaignStatus = "Active" | "Successful" | "Failed" | "Cancelled";
+export type CampaignStatus =
+  | "Active"
+  | "Funded"
+  | "InProgress"
+  | "Completed"
+  | "Failed"
+  | "Cancelled";
 
 export interface Campaign {
   id: bigint;
   creator: string;
   title: string;
   description: string;
-  goal: bigint;           // in stroops
-  raised: bigint;         // in stroops
-  deadline: bigint;       // ledger timestamp (unix seconds)
+  goal: bigint;
+  raised: bigint;
+  escrowed: bigint;
+  released: bigint;
+  deadline: bigint;
   status: CampaignStatus;
   backerCount: bigint;
+  milestoneCount: number;
   createdAt: bigint;
 }
 
 export interface CampaignUI extends Campaign {
   goalXLM: number;
   raisedXLM: number;
-  progress: number;       // 0-100
+  escrowedXLM: number;
+  releasedXLM: number;
+  progress: number;
   daysLeft: number;
   isExpired: boolean;
 }
 
-export interface CreateCampaignInput {
+// ─── Milestone ────────────────────────────────────────────────────────────────
+
+export type MilestoneStatus =
+  | "Pending"
+  | "Voting"
+  | "Approved"
+  | "Rejected"
+  | "Released";
+
+export interface Milestone {
+  id: number;
   title: string;
   description: string;
-  goalXLM: number;
-  durationDays: number;
+  amount: bigint;
+  status: MilestoneStatus;
+  proofUrl: string;
+  voteYes: bigint;
+  voteNo: bigint;
+  voteDeadline: bigint;
+  submittedAt: bigint;
 }
 
-// ─── Transaction Types ───────────────────────────────────────────────────────
+export interface MilestoneUI extends Milestone {
+  amountXLM: number;
+  approvalPct: number;
+  timeLeft: string;
+  isVotingOpen: boolean;
+}
+
+// ─── Transaction (Level 1/2 — preserved) ─────────────────────────────────────
 
 export type TxStatus = "pending" | "success" | "failed";
-
-export interface Transaction {
-  id: string;             // tx hash
-  type: TxType;
-  status: TxStatus;
-  campaignId?: bigint;
-  amount?: bigint;        // stroops
-  from: string;
-  to?: string;            // recipient (for send_payment)
-  timestamp: number;      // unix ms
-  ledger?: number;
-  error?: string;
-}
 
 export type TxType =
   | "send_payment"
   | "create_campaign"
   | "contribute"
   | "claim_funds"
-  | "cancel_campaign";
+  | "cancel_campaign"
+  | "add_milestone"
+  | "submit_milestone"
+  | "vote_milestone"
+  | "release_milestone"
+  | "claim_refund"
+  | "start_campaign";
 
-// ─── Event Types ────────────────────────────────────────────────────────────
+export interface Transaction {
+  id: string;
+  type: TxType;
+  status: TxStatus;
+  campaignId?: bigint;
+  milestoneId?: number;
+  amount?: bigint;
+  from: string;
+  to?: string;
+  timestamp: number;
+  ledger?: number;
+  error?: string;
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────────
 
 export type EventType =
-  | "CAMP_NEW"
-  | "CAMP_FUND"
-  | "CAMP_CLAM"
-  | "CAMP_REF"
-  | "CAMP_CAN";
+  | "CAMPCRTD"
+  | "CONTRIB"
+  | "MSSUB"
+  | "VOTECAST"
+  | "MSAPRVD"
+  | "MSRJCTD"
+  | "FUNDSREL"
+  | "REFUND"
+  | "CAMPDONE"
+  | "CANCELD";
 
 export interface ContractEvent {
   id: string;
@@ -90,7 +128,7 @@ export interface ActivityItem {
   label: string;
   description: string;
   actor: string;
-  amount?: number;       // XLM
+  amount?: number;
   campaignId: bigint;
   timestamp: number;
   txHash: string;
@@ -98,7 +136,27 @@ export interface ActivityItem {
   color: string;
 }
 
-// ─── Wallet Types ────────────────────────────────────────────────────────────
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export interface AnalyticsData {
+  totalCampaigns: number;
+  activeCampaigns: number;
+  fundedCampaigns: number;
+  completedCampaigns: number;
+  failedCampaigns: number;
+  totalRaisedXLM: number;
+  totalEscrowedXLM: number;
+  totalReleasedXLM: number;
+  totalBackers: number;
+  totalMilestones: number;
+  approvedMilestones: number;
+  rejectedMilestones: number;
+  pendingMilestones: number;
+  successRate: number;
+  avgFundingXLM: number;
+}
+
+// ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export interface WalletBalance {
   asset: string;
@@ -106,16 +164,21 @@ export interface WalletBalance {
   decimals: number;
 }
 
-export interface WalletState {
-  address: string | null;
-  isConnected: boolean;
-  isConnecting: boolean;
-  network: Network;
-  balances: WalletBalance[];
-  kit: unknown | null;
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+export type FeedbackType = "bug" | "feature" | "general" | "ux";
+export type FeedbackRating = 1 | 2 | 3 | 4 | 5;
+
+export interface FeedbackEntry {
+  id: string;
+  type: FeedbackType;
+  rating: FeedbackRating;
+  message: string;
+  walletAddress?: string;
+  timestamp: number;
 }
 
-// ─── UI Types ────────────────────────────────────────────────────────────────
+// ─── Toast ────────────────────────────────────────────────────────────────────
 
 export interface ToastMessage {
   id: string;
@@ -123,10 +186,4 @@ export interface ToastMessage {
   description?: string;
   variant: "default" | "destructive" | "success";
   txHash?: string;
-}
-
-export interface PaginationState {
-  page: number;
-  pageSize: number;
-  total: number;
 }

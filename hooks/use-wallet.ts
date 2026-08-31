@@ -5,10 +5,9 @@ import { useWalletStore } from "@/lib/wallet-store";
 import { parseStellarError } from "@/lib/stellar-utils";
 import { CONTRACT_CONFIG } from "@/lib/contract-config";
 
-// StellarWalletsKit types (dynamic import to avoid SSR issues)
-type StellarWalletsKit = {
-  openModal: (opts: { onWalletSelected: (option: { id: string }) => void }) => void;
-  setWallet: (walletId: string) => void;
+type Kit = {
+  openModal: (opts: { onWalletSelected: (opt: { id: string }) => void }) => void;
+  setWallet: (id: string) => void;
   getAddress: () => Promise<{ address: string }>;
   sign: (opts: {
     blob: string;
@@ -20,11 +19,14 @@ type StellarWalletsKit = {
 
 export function useWallet() {
   const store = useWalletStore();
-  const kitRef = useRef<StellarWalletsKit | null>(null);
+  const kitRef = useRef<Kit | null>(null);
 
-  // ─── Initialize StellarWalletsKit (lazy, client-only) ────────────────────
-  const initKit = useCallback(async () => {
+  // ─── Init StellarWalletsKit ───────────────────────────────────────────────
+
+  const initKit = useCallback(async (): Promise<Kit | null> => {
     if (typeof window === "undefined") return null;
+
+    // Re-use existing kit instance
     if (kitRef.current) return kitRef.current;
 
     try {
@@ -32,7 +34,10 @@ export function useWallet() {
         StellarWalletsKit,
         WalletNetwork,
         FREIGHTER_ID,
-        allowAllModules,
+        FreighterModule,
+        xBullModule,
+        AlbedoModule,
+        LobstrModule,
       } = await import("@creit.tech/stellar-wallets-kit");
 
       const network =
@@ -43,103 +48,138 @@ export function useWallet() {
       const kit = new StellarWalletsKit({
         network,
         selectedWalletId: FREIGHTER_ID,
-        modules: allowAllModules(),
+        modules: [
+          new FreighterModule(),
+          new xBullModule(),
+          new AlbedoModule(),
+          new LobstrModule(),
+        ],
       });
 
-      kitRef.current = kit as unknown as StellarWalletsKit;
+      kitRef.current = kit as unknown as Kit;
       store.setKit(kit);
-      return kit as unknown as StellarWalletsKit;
+      return kitRef.current;
     } catch (err) {
-      console.error("Failed to initialize StellarWalletsKit:", err);
-      store.setError(
-        "Failed to load wallet library. Please refresh and try again.",
-      );
-      return null;
+      console.error("StellarWalletsKit init failed:", err);
+      // Fallback: try allowAllModules
+      try {
+        const { StellarWalletsKit, WalletNetwork, FREIGHTER_ID, allowAllModules } =
+          await import("@creit.tech/stellar-wallets-kit");
+        const network =
+          CONTRACT_CONFIG.network === "mainnet"
+            ? WalletNetwork.PUBLIC
+            : WalletNetwork.TESTNET;
+        const kit = new StellarWalletsKit({
+          network,
+          selectedWalletId: FREIGHTER_ID,
+          modules: allowAllModules(),
+        });
+        kitRef.current = kit as unknown as Kit;
+        store.setKit(kit);
+        return kitRef.current;
+      } catch {
+        store.setError("Failed to load wallet library. Please refresh the page.");
+        return null;
+      }
     }
   }, [store]);
 
   // ─── Connect ─────────────────────────────────────────────────────────────
+
   const connect = useCallback(async () => {
     store.setConnecting(true);
     store.setError(null);
 
     try {
       const kit = await initKit();
-      if (!kit) throw new Error("Could not initialize wallet library");
+      if (!kit) throw new Error("Wallet library could not be loaded");
 
       await new Promise<void>((resolve, reject) => {
-        try {
-          kit.openModal({
-            onWalletSelected: async (option: { id: string }) => {
-              try {
-                kit.setWallet(option.id);
-                const { address } = await kit.getAddress();
-                if (!address) throw new Error("No address returned from wallet");
-                store.setAddress(address);
-                resolve();
-              } catch (err: unknown) {
-                const msg = String((err as Error)?.message ?? err ?? "");
-                // Wallet not installed
-                if (
-                  msg.toLowerCase().includes("not installed") ||
-                  msg.toLowerCase().includes("not found") ||
-                  msg.toLowerCase().includes("is not available")
-                ) {
-                  reject(
-                    new Error(
-                      "Wallet extension not installed. Please install Freighter or another Stellar wallet.",
-                    ),
-                  );
-                }
-                // User rejected
-                else if (
-                  msg.toLowerCase().includes("reject") ||
-                  msg.toLowerCase().includes("declined") ||
-                  msg.toLowerCase().includes("denied") ||
-                  msg.toLowerCase().includes("cancelled")
-                ) {
-                  reject(new Error("Connection rejected. Please approve the connection in your wallet."));
-                } else {
-                  reject(err);
-                }
-              }
-            },
-          });
-        } catch (err: unknown) {
-          reject(err);
-        }
+        kit.openModal({
+          onWalletSelected: async (opt: { id: string }) => {
+            try {
+              kit.setWallet(opt.id);
 
-        // Safety timeout — don't hang forever
+              // Freighter needs a brief delay after setWallet
+              await new Promise((r) => setTimeout(r, 400));
+
+              const { address } = await kit.getAddress();
+
+              if (!address) {
+                throw new Error("Wallet returned no address");
+              }
+
+              store.setAddress(address);
+              resolve();
+            } catch (err: unknown) {
+              const msg = String((err as Error)?.message ?? err ?? "").toLowerCase();
+
+              if (
+                msg.includes("not installed") ||
+                msg.includes("not found") ||
+                msg.includes("is not available") ||
+                msg.includes("undefined") ||
+                msg.includes("extension")
+              ) {
+                reject(
+                  new Error(
+                    "Wallet extension not installed. Please install Freighter from freighter.app and try again.",
+                  ),
+                );
+              } else if (
+                msg.includes("reject") ||
+                msg.includes("declined") ||
+                msg.includes("denied") ||
+                msg.includes("cancel") ||
+                msg.includes("user refused")
+              ) {
+                reject(
+                  new Error(
+                    "Connection rejected. Please approve the connection request in your wallet.",
+                  ),
+                );
+              } else {
+                reject(new Error((err as Error)?.message || "Failed to connect wallet"));
+              }
+            }
+          },
+        });
+
+        // Safety timeout
         setTimeout(
-          () => reject(new Error("Wallet selection timed out. Please try again.")),
+          () => reject(new Error("Connection timed out. Please try again.")),
           120_000,
         );
       });
     } catch (err: unknown) {
-      const msg = parseStellarError(err);
-      store.setError(msg);
+      store.setError(parseStellarError(err));
     } finally {
       store.setConnecting(false);
     }
   }, [initKit, store]);
 
   // ─── Disconnect ───────────────────────────────────────────────────────────
+
   const disconnect = useCallback(() => {
     try {
       kitRef.current?.disconnect();
-    } catch {
-      // Ignore disconnect errors
-    }
+    } catch {}
     kitRef.current = null;
     store.disconnect();
   }, [store]);
 
   // ─── Sign Transaction ─────────────────────────────────────────────────────
+
   const signTransaction = useCallback(
     async (txXdr: string): Promise<string> => {
+      // Try to re-init kit if lost (e.g. page refresh with persisted address)
+      if (!kitRef.current) {
+        await initKit();
+      }
+
       const kit = kitRef.current;
-      if (!kit) throw new Error("Wallet not connected. Please connect first.");
-      if (!store.address) throw new Error("No wallet address found.");
+      if (!kit) throw new Error("Wallet not connected. Please connect your wallet first.");
+      if (!store.address) throw new Error("No wallet address. Please reconnect your wallet.");
 
       try {
         const result = await kit.sign({
@@ -149,39 +189,51 @@ export function useWallet() {
         });
 
         if (!result?.signedTxXdr) {
-          throw new Error("Wallet returned an empty signature.");
+          throw new Error("Wallet returned an empty signature. Please try again.");
         }
 
         return result.signedTxXdr;
       } catch (err: unknown) {
-        const msg = String((err as Error)?.message ?? err ?? "");
-        // Explicit user rejection handling
+        const msg = String((err as Error)?.message ?? err ?? "").toLowerCase();
+
         if (
-          msg.toLowerCase().includes("reject") ||
-          msg.toLowerCase().includes("declined") ||
-          msg.toLowerCase().includes("denied") ||
-          msg.toLowerCase().includes("user cancel") ||
-          msg.toLowerCase().includes("cancelled")
+          msg.includes("reject") ||
+          msg.includes("declined") ||
+          msg.includes("denied") ||
+          msg.includes("cancel") ||
+          msg.includes("user refused")
         ) {
-          throw new Error("Transaction rejected by wallet. Please approve in your wallet to continue.");
+          throw new Error(
+            "Transaction rejected. You declined the signing request in your wallet.",
+          );
         }
-        // Wallet not installed / extension gone
-        if (
-          msg.toLowerCase().includes("not installed") ||
-          msg.toLowerCase().includes("not found")
-        ) {
-          throw new Error("Wallet extension not found. Please ensure your wallet is installed and unlocked.");
+
+        if (msg.includes("not installed") || msg.includes("not found")) {
+          throw new Error(
+            "Wallet extension not found. Please ensure Freighter is installed and unlocked.",
+          );
         }
+
+        // Insufficient balance — Freighter sometimes surfaces this
+        if (msg.includes("insufficient") || msg.includes("underfunded")) {
+          throw new Error(
+            "Insufficient XLM balance. You need enough XLM to cover the transaction fee.",
+          );
+        }
+
         throw err;
       }
     },
-    [store.address],
+    [store.address, initKit],
   );
 
-  // ─── Session Restore ──────────────────────────────────────────────────────
+  // ─── Reconnect on mount if address persisted ──────────────────────────────
+
   useEffect(() => {
     if (store.address) {
       store.refreshBalances();
+      // Silently try to reinit kit for signing capability
+      initKit().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -7,23 +7,23 @@ import {
   formatXLM,
   shortenAddress,
 } from "@/lib/stellar-utils";
-import { CONTRACT_CONFIG } from "@/lib/contract-config";
-import type { Transaction, TxType } from "@/types";
+import type { Transaction, TxType } from "@/types/index";
 
-const TX_LABELS: Record<TxType, string> = {
-  create_campaign: "Created Campaign",
-  contribute: "Contributed",
-  claim_funds: "Claimed Funds",
-  cancel_campaign: "Cancelled Campaign",
-  send_payment: "Sent Payment",
-};
-
-const TX_ICONS: Record<TxType, string> = {
-  create_campaign: "🚀",
-  contribute: "💰",
-  claim_funds: "🎉",
-  cancel_campaign: "❌",
-  send_payment: "💸",
+// Every TxType value must be present — Record<TxType, ...> is exhaustive.
+const TX_META: Record<TxType, { label: string; icon: string }> = {
+  // ── Level 1/2 ──────────────────────────────────────────────────────────
+  send_payment:      { label: "Send XLM",          icon: "💸" },
+  create_campaign:   { label: "Create Campaign",   icon: "🚀" },
+  contribute:        { label: "Contribution",       icon: "💰" },
+  claim_funds:       { label: "Claim Funds",        icon: "🎉" },
+  cancel_campaign:   { label: "Cancel Campaign",   icon: "❌" },
+  // ── Level 3/4 ──────────────────────────────────────────────────────────
+  add_milestone:     { label: "Add Milestone",     icon: "📋" },
+  submit_milestone:  { label: "Submit Proof",       icon: "📄" },
+  vote_milestone:    { label: "Vote on Milestone", icon: "🗳️" },
+  release_milestone: { label: "Release Funds",     icon: "💸" },
+  claim_refund:      { label: "Claim Refund",      icon: "↩️" },
+  start_campaign:    { label: "Start Campaign",    icon: "⚡" },
 };
 
 function StatusBadge({ status }: { status: Transaction["status"] }) {
@@ -49,39 +49,45 @@ function StatusBadge({ status }: { status: Transaction["status"] }) {
   );
 }
 
-interface TxRowProps {
-  tx: Transaction;
-}
-
-function TxRow({ tx }: TxRowProps) {
-  const explorerUrl = tx.id && tx.id.length > 10 ? explorerTxUrl(tx.id) : null;
+function TxRow({ tx }: { tx: Transaction }) {
+  const meta = TX_META[tx.type];
+  const explorerUrl =
+    tx.id && tx.id.length > 10 ? explorerTxUrl(tx.id) : null;
 
   return (
     <div className="flex items-start gap-3 py-3 border-b border-white/5 last:border-0">
-      <span className="text-xl mt-0.5 shrink-0">{TX_ICONS[tx.type]}</span>
+      <span className="text-xl mt-0.5 shrink-0">{meta.icon}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-sm font-medium text-white/80 truncate">
-            {TX_LABELS[tx.type]}
+            {meta.label}
           </span>
           <StatusBadge status={tx.status} />
         </div>
+
         {tx.amount !== undefined && (
-          <p className="text-xs text-white/50 mb-1">
+          <p className="text-xs text-white/50 mb-0.5">
             Amount: {formatXLM(tx.amount)} XLM
           </p>
         )}
         {tx.to && (
-          <p className="text-xs text-white/40 mb-1">
-            To: <span className="font-mono">{tx.to.slice(0, 8)}...{tx.to.slice(-6)}</span>
+          <p className="text-xs text-white/40 mb-0.5">
+            To:{" "}
+            <span className="font-mono">
+              {tx.to.slice(0, 8)}...{tx.to.slice(-6)}
+            </span>
           </p>
         )}
         {tx.campaignId !== undefined && (
-          <p className="text-xs text-white/40">Campaign #{tx.campaignId.toString()}</p>
+          <p className="text-xs text-white/40">
+            Campaign #{tx.campaignId.toString()}
+            {tx.milestoneId !== undefined && ` · Milestone #${tx.milestoneId}`}
+          </p>
         )}
         {tx.status === "failed" && tx.error && (
           <p className="text-xs text-red-400 mt-1">⚠ {tx.error}</p>
         )}
+
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-xs text-white/30">
             {formatTimestamp(tx.timestamp)}
@@ -94,7 +100,12 @@ function TxRow({ tx }: TxRowProps) {
               className="text-xs text-stellar-blue/70 hover:text-stellar-blue flex items-center gap-1 transition-colors"
             >
               {shortenAddress(tx.id, 4)}
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -116,7 +127,9 @@ export function TransactionHistory() {
   return (
     <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-        <h3 className="font-semibold text-white text-sm">Transaction History</h3>
+        <h3 className="font-semibold text-white text-sm">
+          Transaction History
+        </h3>
         {transactions.length > 0 && (
           <button
             onClick={clearAll}
@@ -137,7 +150,9 @@ export function TransactionHistory() {
             </p>
           </div>
         ) : (
-          transactions.map((tx) => <TxRow key={tx.id + tx.timestamp} tx={tx} />)
+          transactions.map((tx) => (
+            <TxRow key={tx.id + tx.timestamp} tx={tx} />
+          ))
         )}
       </div>
     </div>

@@ -2,78 +2,209 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --stellar-blue: #4f8bff;
-    --stellar-purple: #9b5de5;
-    --stellar-teal: #00c9b1;
-  }
+/* ─── CSS Variables ────────────────────────────────────────────────────────── */
 
-  * {
-    box-sizing: border-box;
-  }
-
-  html {
-    scroll-behavior: smooth;
-  }
-
-  body {
-    background: #080a0f;
-  }
-
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
+:root {
+  --stellar-blue:   #4f8bff;
+  --stellar-purple: #9b5de5;
+  --stellar-teal:   #00c9b1;
 }
 
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Prevent layout shift when drawer opens/closes */
+  overflow-x: hidden;
+}
+
+body {
+  background: #080a0f;
+  /* Prevent horizontal overflow globally */
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: rgba(255,255,255,0.1); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* ─── Typography ───────────────────────────────────────────────────────────── */
+
+/* Prevent text from overflowing on small screens */
+h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* ─── Utilities ────────────────────────────────────────────────────────────── */
+
 @layer utilities {
+  /* Text gradient */
   .text-gradient {
     @apply bg-gradient-to-r from-stellar-blue to-stellar-purple bg-clip-text text-transparent;
   }
 
+  /* Standard dark card */
   .card {
     @apply bg-white/[0.03] border border-white/[0.08] rounded-2xl;
   }
 
+  /* Safe padding for notched phones */
+  .safe-top    { padding-top:    env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-left   { padding-left:   env(safe-area-inset-left); }
+  .safe-right  { padding-right:  env(safe-area-inset-right); }
+}
+
+/* ─── Animations ───────────────────────────────────────────────────────────── */
+
+@layer utilities {
   .animate-in {
-    animation: fadeIn 0.2s ease-out;
+    animation: fadeUp 0.2s ease-out both;
   }
-
   .slide-in-from-right-full {
-    animation: slideInRight 0.3s ease-out;
+    animation: slideRight 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  .slide-in-from-bottom {
+    animation: slideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Responsive Layout Fixes ──────────────────────────────────────────────── */
+
+/* Prevent tables from breaking layout on mobile */
+table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent code/pre from breaking layout */
+pre, code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Form inputs — better mobile defaults */
+input, textarea, select {
+  font-size: 16px; /* Prevents iOS zoom on focus */
+  -webkit-appearance: none;
+}
+
+@media (min-width: 640px) {
+  input, textarea, select {
+    font-size: 14px;
   }
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
+/* ─── Page containers — consistent padding on all sizes ──────────────────── */
+
+.page-container {
+  width: 100%;
+  max-width: 80rem; /* 7xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@media (min-width: 640px) {
+  .page-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
   }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+}
+
+/* ─── Mobile grid helpers ──────────────────────────────────────────────────── */
+
+/* Stat grids: 2 cols on mobile, 4 on desktop */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
+}
+
+/* Campaign grid: 1 col mobile → 2 tablet → 3 desktop */
+.campaign-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 480px) {
+  .campaign-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .campaign-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ─── Wallet modal — full width on mobile ──────────────────────────────────── */
+
+@media (max-width: 639px) {
+  /* StellarWalletsKit modal fix */
+  stellar-wallets-modal,
+  [data-testid="swk-modal"] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 1.5rem 1.5rem 0 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+  }
+}
+
+/* ─── Number inputs — hide spinners ───────────────────────────────────────── */
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+/* ─── Focus visible — accessibility ───────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--stellar-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

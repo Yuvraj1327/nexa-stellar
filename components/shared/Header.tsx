@@ -24,17 +24,17 @@ const NAV = [
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-      {/* Icon */}
-    <img
-  src="https://i.ibb.co/27ZvbBRQ/Chat-GPT-Image-Aug-31-2026-07-10-17-PM.png"
-  alt="Nexa Stellar"
-  className="w-8 h-8 rounded-xl object-cover"
-/>
-      {/* Name — always visible */}
-      <div className="flex flex-col leading-none">
-        <span className="font-bold text-white text-[15px] tracking-tight">nexa</span>
-        <span className="font-light text-white/40 text-[11px] tracking-widest uppercase">stellar</span>
+    <Link href="/" className="flex items-center gap-3 shrink-0 group">
+      {/* Custom logo image */}
+      <img
+        src="https://i.ibb.co/27ZvbBRQ/Chat-GPT-Image-Aug-31-2026-07-10-17-PM.png"
+        alt="Nexa Stellar"
+        className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-stellar-blue/20 group-hover:shadow-stellar-blue/40 transition-shadow ring-1 ring-white/10"
+      />
+      {/* Brand name — always visible */}
+      <div className="flex items-baseline gap-1 leading-none">
+        <span className="font-extrabold text-white text-xl tracking-tight">Nexa</span>
+        <span className="font-medium text-stellar-blue text-xl tracking-tight">Stellar</span>
       </div>
     </Link>
   );

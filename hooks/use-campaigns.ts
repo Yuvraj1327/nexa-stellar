@@ -21,7 +21,9 @@ import {
 } from "@/lib/milestone-client";
 import type { CampaignUI, CreateCampaignInput } from "@/types/index";
 import { useWallet } from "@/hooks/use-wallet";
+import { useToast } from "@/hooks/use-toast";
 import { toCampaignUI, qk as msQk } from "@/hooks/use-milestones";
+import { parseStellarError } from "@/lib/stellar-utils";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -138,6 +140,7 @@ export function useCreateCampaign() {
   const { address } = useWalletStore();
   const { addTransaction, updateTransaction } = useTxStore();
   const { signTransaction } = useWallet();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (input: CreateCampaignInput) => {
@@ -177,7 +180,7 @@ export function useCreateCampaign() {
       updateTransaction(txId, { status: "success", id: hash, ledger });
       return { hash, txId };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate + refetch both campaign list query keys immediately.
       // use-campaigns uses "campaigns", use-milestones uses "ms-campaigns".
       queryClient.invalidateQueries({ queryKey: campaignKeys.all });
@@ -187,6 +190,20 @@ export function useCreateCampaign() {
       // without waiting for the 30 s staleTime window.
       queryClient.refetchQueries({ queryKey: campaignKeys.all });
       queryClient.refetchQueries({ queryKey: msQk.campaigns });
+
+      toast({
+        title: "Campaign Created! 🎉",
+        description: "Your campaign is now live on Stellar.",
+        variant: "success",
+        txHash: data.hash,
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to create campaign",
+        description: parseStellarError(err),
+        variant: "destructive",
+      });
     },
   });
 }
@@ -198,6 +215,7 @@ export function useContribute() {
   const { address } = useWalletStore();
   const { addTransaction, updateTransaction } = useTxStore();
   const { signTransaction } = useWallet();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({
@@ -237,9 +255,22 @@ export function useContribute() {
       updateTransaction(txId, { status: "success", id: hash, ledger });
       return { hash, txId };
     },
-    onSuccess: (_data, { campaignId }) => {
+    onSuccess: (data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.all });
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(String(campaignId)) });
+      toast({
+        title: "Contributed Successfully! 💰",
+        description: "Your funds are securely held in escrow.",
+        variant: "success",
+        txHash: data.hash,
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Contribution failed",
+        description: parseStellarError(err),
+        variant: "destructive",
+      });
     },
   });
 }
@@ -251,6 +282,7 @@ export function useCancelCampaign() {
   const { address } = useWalletStore();
   const { addTransaction, updateTransaction } = useTxStore();
   const { signTransaction } = useWallet();
+  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (campaignId: string | bigint) => {
@@ -279,9 +311,21 @@ export function useCancelCampaign() {
       updateTransaction(txId, { status: "success", id: hash, ledger });
       return { hash, txId };
     },
-    onSuccess: (_data, campaignId) => {
+    onSuccess: (data, campaignId) => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.all });
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(String(campaignId)) });
+      toast({
+        title: "Campaign Cancelled",
+        variant: "default",
+        txHash: data.hash,
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Cancel failed",
+        description: parseStellarError(err),
+        variant: "destructive",
+      });
     },
   });
 }

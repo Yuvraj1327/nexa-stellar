@@ -27,11 +27,11 @@ export default function DashboardPage() {
   ) ?? [];
 
   const backedCampaigns = allCampaigns?.filter((c) =>
-    backedIds?.includes(c.id),
+    backedIds?.includes(String(c.id)),
   ) ?? [];
 
   const totalContributed = backedCampaigns.reduce(
-    (acc, c) => acc + c.raised,
+    (acc, c) => acc + (c.raised ?? 0n),
     0n,
   );
 

@@ -61,7 +61,7 @@ export function WalletButton({ fullWidth = false }: WalletButtonProps) {
           </span>
         </div>
         {xlmBalance && (
-          <span className="text-xs text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-lg">
+          <span className="hidden sm:inline-flex text-xs text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-lg">
             {parseFloat(xlmBalance.balance).toFixed(2)} XLM
           </span>
         )}

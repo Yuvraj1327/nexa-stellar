@@ -13,15 +13,16 @@ import { useWallet } from "@/hooks/use-wallet";
 import { explorerTxUrl } from "@/lib/stellar-utils";
 
 const STATUS_STYLES: Record<string, string> = {
-  Pending:  "text-gray-400 bg-gray-400/10 border-gray-400/20",
-  Voting:   "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-  Approved: "text-green-400 bg-green-400/10 border-green-400/20",
-  Rejected: "text-red-400 bg-red-400/10 border-red-400/20",
-  Released: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  Pending:   "text-gray-400 bg-gray-400/10 border-gray-400/20",
+  Submitted: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
+  Voting:    "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
+  Approved:  "text-green-400 bg-green-400/10 border-green-400/20",
+  Rejected:  "text-red-400 bg-red-400/10 border-red-400/20",
+  Released:  "text-purple-400 bg-purple-400/10 border-purple-400/20",
 };
 
 const STATUS_ICON: Record<string, string> = {
-  Pending: "⏳", Voting: "🗳️", Approved: "✅", Rejected: "❌", Released: "💸",
+  Pending: "⏳", Submitted: "📄", Voting: "🗳️", Approved: "✅", Rejected: "❌", Released: "💸",
 };
 
 interface Props {
@@ -41,7 +42,9 @@ export function MilestonePanel({ milestone, campaign, isCreator }: Props) {
   const { mutate: release, isPending: isReleasing } = useReleaseMilestone();
   const { data: hasVoted } = useHasVoted(campaign.id, milestone.id);
 
-  const canSubmit = isCreator && milestone.status === "Pending" && campaign.status === "InProgress";
+  // Creator can submit proof when milestone is Pending and campaign is active (Active, Funded, or InProgress)
+  const campaignAllowsSubmit = ["Active", "Funded", "InProgress"].includes(campaign.status);
+  const canSubmit = isCreator && milestone.status === "Pending" && campaignAllowsSubmit;
   const canVote = isConnected && milestone.isVotingOpen && !hasVoted && !isCreator;
   const canFinalize = milestone.status === "Voting" && !milestone.isVotingOpen;
   const canRelease = isCreator && milestone.status === "Approved";
@@ -81,7 +84,7 @@ export function MilestonePanel({ milestone, campaign, isCreator }: Props) {
       )}
 
       {/* Vote results */}
-      {["Voting", "Approved", "Rejected", "Released"].includes(milestone.status) && (
+      {["Submitted", "Voting", "Approved", "Rejected", "Released"].includes(milestone.status) && (
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-white/40">
             <span>✅ Yes: {milestone.voteYes.toString()}</span>

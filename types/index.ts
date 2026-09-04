@@ -63,6 +63,7 @@ export interface CampaignUI extends Campaign {
 
 export type MilestoneStatus =
   | "Pending"
+  | "Submitted"
   | "Voting"
   | "Approved"
   | "Rejected"

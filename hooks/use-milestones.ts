@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAllCampaigns,
-  fetchCampaign,
+  fetchCampaignById as fetchCampaign,
   fetchAllMilestones,
   fetchMilestone,
   fetchContribution,
@@ -11,15 +11,14 @@ import {
   fetchIsRefundClaimed,
   fetchBackerCampaigns,
   fetchAnalytics,
-  fetchMilestoneEvents,
   buildCreateCampaignTx,
   buildAddMilestoneTx,
   buildContributeTx,
   buildStartCampaignTx,
   buildSubmitMilestoneTx,
-  buildVoteTx,
+  buildVoteMilestoneTx as buildVoteTx,
   buildFinalizeMilestoneTx,
-  buildReleaseMilestoneTx,
+  buildReleaseFundsTx as buildReleaseMilestoneTx,
   buildClaimRefundTx,
   buildCancelCampaignTx,
   submitAndPoll,
@@ -59,6 +58,7 @@ export function toMilestoneUI(ms: Awaited<ReturnType<typeof fetchMilestone>>): M
   const h = Math.floor(secLeft / 3600);
   const m = Math.floor((secLeft % 3600) / 60);
   const timeLeft = h > 24 ? `${Math.ceil(h / 24)}d left` : h > 0 ? `${h}h ${m}m left` : m > 0 ? `${m}m left` : ms.status === "Voting" ? "Voting ended" : "";
+  // Status types now align (types/index MilestoneStatus includes "Submitted")
   return { ...ms, amountXLM: stroopsToXLM(ms.amount), approvalPct, timeLeft, isVotingOpen };
 }
 
@@ -145,15 +145,6 @@ export function useAnalytics() {
     queryFn: fetchAnalytics,
     refetchInterval: 30_000,
     staleTime: 20_000,
-  });
-}
-
-export function useMilestoneEvents() {
-  return useQuery({
-    queryKey: qk.events,
-    queryFn: () => fetchMilestoneEvents(),
-    refetchInterval: 15_000,
-    staleTime: 10_000,
   });
 }
 

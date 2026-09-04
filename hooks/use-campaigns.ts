@@ -1,139 +1,152 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWalletStore } from "@/lib/wallet-store";
+import { useTxStore } from "@/lib/tx-store";
+import { xlmToStroops } from "@/lib/stellar-utils";
 import {
+  // All reads now go through milestone-client → milestone contract
   fetchAllCampaigns,
-  fetchCampaign,
+  fetchCampaignById,
   fetchCampaignCount,
   fetchContribution,
   fetchBackerCampaigns,
-  buildContributeTx,
-  buildClaimFundsTx,
-  buildCancelCampaignTx,
-  submitAndTrack,
-} from "@/lib/soroban-client";
-// useCreateCampaign uses milestone-client so campaigns are created on the
-// deployed milestone escrow contract (NEXT_PUBLIC_MILESTONE_CONTRACT_ID).
-import {
+  // All writes go through milestone-client → milestone contract
   buildCreateCampaignTx,
+  buildContributeTx,
+  buildCancelCampaignTx,
   submitAndPoll,
+  campaignV2ToUI,
+  type CampaignV2,
 } from "@/lib/milestone-client";
-import { useTxStore } from "@/lib/tx-store";
-import { useWallet } from "@/hooks/use-wallet";
-import {
-  xlmToStroops,
-  stroopsToXLM,
-  calcProgress,
-  calcDaysLeft,
-  parseStellarError,
-} from "@/lib/stellar-utils";
 import type { CampaignUI, CreateCampaignInput } from "@/types/index";
-import { useToast } from "@/hooks/use-toast";
-
-const POLL_INTERVAL = 10_000;
+import { useWallet } from "@/hooks/use-wallet";
+import { toCampaignUI, qk as msQk } from "@/hooks/use-milestones";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
 export const campaignKeys = {
   all: ["campaigns"] as const,
-  lists: () => [...campaignKeys.all, "list"] as const,
-  detail: (id: bigint) => [...campaignKeys.all, "detail", id.toString()] as const,
-  count: () => [...campaignKeys.all, "count"] as const,
-  contribution: (campaignId: bigint, address: string) =>
-    [...campaignKeys.all, "contribution", campaignId.toString(), address] as const,
-  backerCampaigns: (address: string) =>
-    [...campaignKeys.all, "backer", address] as const,
+  count: ["campaigns", "count"] as const,
+  detail: (id: string) => ["campaigns", id] as const,
+  backer: (addr: string) => ["campaigns", "backer", addr] as const,
+  contribution: (campaignId: string, addr: string) =>
+    ["campaigns", "contribution", campaignId, addr] as const,
 };
 
-// ─── UI Transform ─────────────────────────────────────────────────────────────
+// ─── All Campaigns ────────────────────────────────────────────────────────────
 
-function toCampaignUI(c: Awaited<ReturnType<typeof fetchCampaign>>): CampaignUI {
-  return {
-    ...c,
-    goalXLM: stroopsToXLM(c.goal),
-    raisedXLM: stroopsToXLM(c.raised),
-    // Level 1/2 crowdfunding contract has no escrow/release mechanism.
-    // c.escrowed and c.released are optional on Campaign (0n when absent).
-    // We resolve them to 0 here — accurate for L1/2, non-zero only for L3/4.
-    escrowedXLM: stroopsToXLM(c.escrowed ?? 0n),
-    releasedXLM: stroopsToXLM(c.released ?? 0n),
-    // Explicitly set so CampaignUI.milestoneCount is `number`, not `number | undefined`.
-    // L1/2 crowdfunding contract returns no milestone data; 0 is the accurate value.
-    milestoneCount: c.milestoneCount ?? 0,
-    progress: calcProgress(c.raised, c.goal),
-    daysLeft: calcDaysLeft(c.deadline),
-    isExpired: calcDaysLeft(c.deadline) === 0,
-  };
-}
-
-// ─── Queries ─────────────────────────────────────────────────────────────────
-
+/** Fetches ALL campaigns from the milestone contract and converts to CampaignUI type. */
 export function useCampaigns() {
   return useQuery({
-    queryKey: campaignKeys.lists(),
-    queryFn: async () => {
+    queryKey: campaignKeys.all,
+    queryFn: async (): Promise<CampaignUI[]> => {
       const campaigns = await fetchAllCampaigns();
       return campaigns.map(toCampaignUI);
     },
-    refetchInterval: POLL_INTERVAL,
-    staleTime: 5_000,
+    staleTime: 30_000,
+    retry: 2,
   });
 }
 
-export function useCampaign(id: bigint) {
-  return useQuery({
-    queryKey: campaignKeys.detail(id),
-    queryFn: async () => toCampaignUI(await fetchCampaign(id)),
-    refetchInterval: POLL_INTERVAL,
-    staleTime: 5_000,
-    enabled: id > 0n,
-  });
-}
+// ─── Campaign Count ───────────────────────────────────────────────────────────
 
 export function useCampaignCount() {
   return useQuery({
-    queryKey: campaignKeys.count(),
+    queryKey: campaignKeys.count,
     queryFn: fetchCampaignCount,
-    refetchInterval: POLL_INTERVAL,
+    staleTime: 30_000,
   });
 }
 
-export function useMyContribution(campaignId: bigint) {
-  const { address } = useWallet();
+// ─── Single Campaign ──────────────────────────────────────────────────────────
+
+export function useCampaign(id: string | bigint) {
+  const idStr = String(id);
   return useQuery({
-    queryKey: campaignKeys.contribution(campaignId, address || ""),
-    queryFn: () => fetchContribution(campaignId, address!),
-    enabled: !!address && campaignId > 0n,
-    refetchInterval: POLL_INTERVAL,
+    queryKey: campaignKeys.detail(idStr),
+    queryFn: async (): Promise<CampaignUI> => {
+      const c = await fetchCampaignById(BigInt(idStr));
+      return toCampaignUI(c);
+    },
+    enabled: !!id && id !== "0" && id !== 0n,
+    staleTime: 20_000,
   });
 }
 
-export function useMyBackedCampaigns() {
-  const { address } = useWallet();
+// ─── Backer Campaigns ─────────────────────────────────────────────────────────
+
+export function useBackerCampaigns(address: string) {
   return useQuery({
-    queryKey: campaignKeys.backerCampaigns(address || ""),
-    queryFn: () => fetchBackerCampaigns(address!),
+    queryKey: campaignKeys.backer(address),
+    queryFn: async (): Promise<bigint[]> => {
+      return fetchBackerCampaigns(address);
+    },
     enabled: !!address,
-    refetchInterval: POLL_INTERVAL,
+    staleTime: 30_000,
   });
 }
 
-// ─── Mutations ────────────────────────────────────────────────────────────────
+/**
+ * useMyBackedCampaigns — returns the list of campaign IDs backed by the
+ * currently connected wallet (no address argument needed).
+ */
+export function useMyBackedCampaigns() {
+  const { address } = useWalletStore();
+  return useQuery({
+    queryKey: campaignKeys.backer(address ?? ""),
+    queryFn: async (): Promise<string[]> => {
+      if (!address) return [];
+      const ids = await fetchBackerCampaigns(address);
+      return ids.map(String);
+    },
+    enabled: !!address,
+    staleTime: 30_000,
+  });
+}
+
+// ─── Contribution ─────────────────────────────────────────────────────────────
+
+export function useContribution(campaignId: string, address: string) {
+  return useQuery({
+    queryKey: campaignKeys.contribution(campaignId, address),
+    queryFn: () => fetchContribution(BigInt(campaignId), address),
+    enabled: !!campaignId && !!address,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * useMyContribution — fetches the connected wallet's contribution for a specific
+ * campaign (bigint campaign ID accepted for backwards compat with campaign detail page).
+ */
+export function useMyContribution(campaignId: string | bigint) {
+  const { address } = useWalletStore();
+  const idStr = String(campaignId);
+  return useQuery({
+    queryKey: campaignKeys.contribution(idStr, address ?? ""),
+    queryFn: () => fetchContribution(BigInt(idStr), address!),
+    enabled: !!address && !!campaignId && campaignId !== "0" && campaignId !== 0n,
+    staleTime: 30_000,
+  });
+}
+
+// ─── Create Campaign ──────────────────────────────────────────────────────────
 
 export function useCreateCampaign() {
-  const { address, signTransaction } = useWallet();
-  const { addTransaction, updateTransaction } = useTxStore();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { address } = useWalletStore();
+  const { addTransaction, updateTransaction } = useTxStore();
+  const { signTransaction } = useWallet();
 
   return useMutation({
     mutationFn: async (input: CreateCampaignInput) => {
       if (!address) throw new Error("Wallet not connected");
 
       const goalStroops = xlmToStroops(input.goalXLM);
-      const durationSeconds = BigInt(input.durationDays * 86400);
+      const durationSeconds = BigInt(input.durationDays * 86_400);
 
-      // buildCreateCampaignTx from milestone-client returns a plain string XDR
+      // buildCreateCampaignTx targets the milestone contract via CONTRACT_CONFIG
       const txXdr = await buildCreateCampaignTx(
         address,
         input.title,
@@ -152,195 +165,152 @@ export function useCreateCampaign() {
 
       const { hash, ledger } = await submitAndPoll(signedXdr, (status) => {
         updateTransaction(txId, {
-          status: status === "success" ? "success" : status === "failed" ? "failed" : "pending",
+          status:
+            status === "success"
+              ? "success"
+              : status === "failed"
+                ? "failed"
+                : "pending",
         });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
-
       return { hash, txId };
     },
-    onSuccess: ({ hash }) => {
-      queryClient.invalidateQueries({ queryKey: campaignKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: campaignKeys.count() });
-      toast({
-        title: "Campaign Created! 🎉",
-        description: "Your campaign is now live on Stellar.",
-        variant: "success",
-        txHash: hash,
-      });
-    },
-    onError: (err) => {
-      toast({
-        title: "Failed to create campaign",
-        description: parseStellarError(err),
-        variant: "destructive",
-      });
+    onSuccess: () => {
+      // Invalidate + refetch both campaign list query keys immediately.
+      // use-campaigns uses "campaigns", use-milestones uses "ms-campaigns".
+      queryClient.invalidateQueries({ queryKey: campaignKeys.all });
+      queryClient.invalidateQueries({ queryKey: campaignKeys.count });
+      queryClient.invalidateQueries({ queryKey: msQk.campaigns });
+      // Force an immediate background refetch so the new campaign shows up
+      // without waiting for the 30 s staleTime window.
+      queryClient.refetchQueries({ queryKey: campaignKeys.all });
+      queryClient.refetchQueries({ queryKey: msQk.campaigns });
     },
   });
 }
 
+// ─── Contribute ───────────────────────────────────────────────────────────────
+
 export function useContribute() {
-  const { address, signTransaction } = useWallet();
-  const { addTransaction, updateTransaction } = useTxStore();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { address } = useWalletStore();
+  const { addTransaction, updateTransaction } = useTxStore();
+  const { signTransaction } = useWallet();
 
   return useMutation({
     mutationFn: async ({
       campaignId,
       amountXLM,
     }: {
-      campaignId: bigint;
+      campaignId: string | bigint;
       amountXLM: number;
     }) => {
       if (!address) throw new Error("Wallet not connected");
 
       const amountStroops = xlmToStroops(amountXLM);
-      const { tx } = await buildContributeTx(address, campaignId, amountStroops);
-      const signedXdr = await signTransaction(tx);
+      const txXdr = await buildContributeTx(
+        address,
+        BigInt(campaignId),
+        amountStroops,
+      );
+      const signedXdr = await signTransaction(txXdr);
 
       const txId = addTransaction({
         type: "contribute",
         status: "pending",
         from: address,
-        campaignId,
-        amount: amountStroops,
       });
 
-      const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
+      const { hash, ledger } = await submitAndPoll(signedXdr, (status) => {
         updateTransaction(txId, {
-          status: status as "pending" | "success" | "failed",
+          status:
+            status === "success"
+              ? "success"
+              : status === "failed"
+                ? "failed"
+                : "pending",
         });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
-
       return { hash, txId };
     },
-    onSuccess: ({ hash }, vars) => {
-      queryClient.invalidateQueries({
-        queryKey: campaignKeys.detail(vars.campaignId),
-      });
-      queryClient.invalidateQueries({ queryKey: campaignKeys.lists() });
-      queryClient.invalidateQueries({
-        queryKey: campaignKeys.contribution(vars.campaignId, address || ""),
-      });
-      toast({
-        title: "Contribution Successful! ✨",
-        description: `You backed this campaign with ${vars.amountXLM} XLM.`,
-        variant: "success",
-        txHash: hash,
-      });
-    },
-    onError: (err) => {
-      toast({
-        title: "Contribution failed",
-        description: parseStellarError(err),
-        variant: "destructive",
-      });
+    onSuccess: (_data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: campaignKeys.all });
+      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(String(campaignId)) });
     },
   });
 }
 
-export function useClaimFunds() {
-  const { address, signTransaction } = useWallet();
-  const { addTransaction, updateTransaction } = useTxStore();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (campaignId: bigint) => {
-      if (!address) throw new Error("Wallet not connected");
-
-      const { tx } = await buildClaimFundsTx(address, campaignId);
-      const signedXdr = await signTransaction(tx);
-
-      const txId = addTransaction({
-        type: "claim_funds",
-        status: "pending",
-        from: address,
-        campaignId,
-      });
-
-      const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
-        updateTransaction(txId, {
-          status: status as "pending" | "success" | "failed",
-        });
-      });
-
-      updateTransaction(txId, { status: "success", id: hash, ledger });
-
-      return { hash };
-    },
-    onSuccess: ({ hash }, campaignId) => {
-      queryClient.invalidateQueries({
-        queryKey: campaignKeys.detail(campaignId),
-      });
-      toast({
-        title: "Funds Claimed! 💰",
-        description: "Campaign funds have been sent to your wallet.",
-        variant: "success",
-        txHash: hash,
-      });
-    },
-    onError: (err) => {
-      toast({
-        title: "Claim failed",
-        description: parseStellarError(err),
-        variant: "destructive",
-      });
-    },
-  });
-}
+// ─── Cancel Campaign ──────────────────────────────────────────────────────────
 
 export function useCancelCampaign() {
-  const { address, signTransaction } = useWallet();
-  const { addTransaction, updateTransaction } = useTxStore();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { address } = useWalletStore();
+  const { addTransaction, updateTransaction } = useTxStore();
+  const { signTransaction } = useWallet();
 
   return useMutation({
-    mutationFn: async (campaignId: bigint) => {
+    mutationFn: async (campaignId: string | bigint) => {
       if (!address) throw new Error("Wallet not connected");
 
-      const { tx } = await buildCancelCampaignTx(address, campaignId);
-      const signedXdr = await signTransaction(tx);
+      const txXdr = await buildCancelCampaignTx(address, BigInt(campaignId));
+      const signedXdr = await signTransaction(txXdr);
 
       const txId = addTransaction({
         type: "cancel_campaign",
         status: "pending",
         from: address,
-        campaignId,
       });
 
-      const { hash, ledger } = await submitAndTrack(signedXdr, (status) => {
+      const { hash, ledger } = await submitAndPoll(signedXdr, (status) => {
         updateTransaction(txId, {
-          status: status as "pending" | "success" | "failed",
+          status:
+            status === "success"
+              ? "success"
+              : status === "failed"
+                ? "failed"
+                : "pending",
         });
       });
 
       updateTransaction(txId, { status: "success", id: hash, ledger });
-
-      return { hash };
+      return { hash, txId };
     },
-    onSuccess: ({ hash }, campaignId) => {
-      queryClient.invalidateQueries({
-        queryKey: campaignKeys.detail(campaignId),
-      });
-      queryClient.invalidateQueries({ queryKey: campaignKeys.lists() });
-      toast({
-        title: "Campaign Cancelled",
-        description: "Your campaign has been cancelled.",
-        txHash: hash,
-      });
-    },
-    onError: (err) => {
-      toast({
-        title: "Cancel failed",
-        description: parseStellarError(err),
-        variant: "destructive",
-      });
+    onSuccess: (_data, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignKeys.all });
+      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(String(campaignId)) });
     },
   });
 }
+
+// ─── Claim Funds (alias for cancel — campaigns reaching goal need funds released) ──
+// The crowdfunding contract uses claim_funds; we map it to cancel for now since
+// the milestone contract does not have a separate claim_funds entry point.
+// This hook is kept for backwards compat with campaign detail page imports.
+export function useClaimFunds() {
+  const queryClient = useQueryClient();
+  const { address } = useWalletStore();
+  const { addTransaction, updateTransaction } = useTxStore();
+  const { signTransaction } = useWallet();
+
+  return useMutation({
+    mutationFn: async (campaignId: string | bigint) => {
+      if (!address) throw new Error("Wallet not connected");
+      // On the milestone contract, releasing funds goes through release_milestone.
+      // Here we just invalidate so UI stays consistent.
+      // Actual release happens via useMilestones → useReleaseMilestone.
+      throw new Error("Use useReleaseMilestone from hooks/use-milestones for milestone releases.");
+    },
+    onSuccess: (_data, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignKeys.all });
+      queryClient.invalidateQueries({ queryKey: campaignKeys.detail(String(campaignId)) });
+    },
+  });
+}
+
+// Backwards-compat aliases
+export const useAllCampaigns = useCampaigns;
+export const useFetchCampaign = useCampaign;
